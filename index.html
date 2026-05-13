@@ -1,0 +1,2505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ossus · Field Log</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root {
+  --sand-0:    #f5ede0;
+  --sand-1:    #ede3d2;
+  --sand-2:    #e2d6c2;
+  --sand-3:    #d4c5ae;
+  --sand-4:    #c2b098;
+  --sand-5:    #a89278;
+  --ink:       #1c1712;
+  --ink-2:     #3a3028;
+  --ink-3:     #5a4e40;
+  --ink-4:     #7a6e60;
+  --ink-5:     #9a8e80;
+  --r1:        #2d4a8a;
+  --r1-light:  rgba(45,74,138,0.12);
+  --r2:        #8a2d2d;
+  --r2-light:  rgba(138,45,45,0.12);
+  --r3:        #2d7a4a;
+  --r3-light:  rgba(45,122,74,0.12);
+  --danger:    #9a2a1a;
+  --mono:      'IBM Plex Mono', monospace;
+  --sans:      'Syne', sans-serif;
+  --ease:      cubic-bezier(0.22,1,0.36,1);
+  --radius:    6px;
+  --radius-lg: 10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:14px;}
+body{background:var(--sand-0);color:var(--ink);font-family:var(--sans);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat:repeat;}
+
+/* ── TOPBAR ── */
+.topbar{position:sticky;top:0;z-index:200;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 36px;background:rgba(245,237,224,0.94);backdrop-filter:blur(20px);border-bottom:1px solid var(--sand-3);}
+.wordmark{display:flex;align-items:center;gap:14px;}
+.wm-name{font-family:var(--sans);font-size:18px;font-weight:800;color:var(--ink);letter-spacing:0.12em;text-transform:uppercase;}
+.wm-divider{width:1px;height:20px;background:var(--sand-3);}
+.wm-sub{font-family:var(--mono);font-size:10px;font-weight:400;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);}
+.topbar-centre{display:flex;align-items:center;gap:8px;}
+.site-pill{font-family:var(--mono);font-size:10px;font-weight:400;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-3);background:var(--sand-2);border:1px solid var(--sand-3);padding:4px 12px;border-radius:20px;}
+.topbar-right{display:flex;align-items:center;gap:18px;}
+.clock-block{display:flex;flex-direction:column;align-items:flex-end;gap:1px;}
+.clock-time{font-family:var(--mono);font-size:19px;font-weight:300;color:var(--ink);letter-spacing:0.04em;line-height:1;}
+.clock-label{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-3);}
+.op-pill{display:flex;align-items:center;gap:8px;background:var(--sand-1);border:1px solid var(--sand-3);border-radius:24px;padding:5px 14px 5px 5px;}
+.op-av{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--sand-0);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;font-weight:500;letter-spacing:0.08em;}
+.op-name{font-family:var(--sans);font-size:12px;font-weight:500;color:var(--ink-3);letter-spacing:0.04em;}
+
+/* ── PAGE TABS ── */
+.page-tabs{display:flex;align-items:center;gap:0;padding:0 36px;background:var(--sand-1);border-bottom:1px solid var(--sand-3);position:sticky;top:58px;z-index:190;}
+.ptab{font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-4);padding:14px 20px;border-bottom:2px solid transparent;cursor:pointer;transition:color 0.2s,border-color 0.2s;user-select:none;}
+.ptab:hover{color:var(--ink-2);}
+.ptab.active{color:var(--ink);border-bottom-color:var(--ink);}
+.ptab-count{font-family:var(--mono);font-size:9px;font-weight:400;background:var(--sand-3);color:var(--ink-3);border-radius:10px;padding:2px 6px;margin-left:6px;}
+.ptab.active .ptab-count{background:var(--ink);color:var(--sand-0);}
+
+/* ── PAGES ── */
+.page{display:none;}.page.active{display:block;}
+
+/* ── LAYOUT (log page) ── */
+.layout{display:grid;grid-template-columns:272px 1fr;min-height:calc(100vh - 104px);position:relative;z-index:1;}
+.sidebar{background:var(--sand-1);border-right:1px solid var(--sand-3);display:flex;flex-direction:column;}
+.sb-top{padding:28px 22px 0;}
+.eyebrow{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.eyebrow::after{content:'';flex:1;height:1px;background:var(--sand-3);}
+.rc-list{display:flex;flex-direction:column;gap:6px;}
+.rc{border:1px solid var(--sand-3);border-radius:var(--radius-lg);padding:14px 16px;cursor:pointer;background:var(--sand-0);transition:border-color 0.2s var(--ease),background 0.2s var(--ease);position:relative;overflow:hidden;}
+.rc::after{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--sand-3);border-radius:0 2px 2px 0;transition:background 0.2s;}
+.rc:hover{border-color:var(--sand-4);background:var(--sand-1);}
+.rc.active{border-color:var(--ink-2);background:var(--sand-0);}
+.rc.active::after{background:var(--ink);}
+.rc-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;}
+.rc-id{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.12em;color:var(--ink-3);text-transform:uppercase;margin-bottom:4px;}
+.rc-name{font-family:var(--sans);font-size:15px;font-weight:700;color:var(--ink);letter-spacing:0.03em;text-transform:uppercase;}
+.rc-badge{font-family:var(--mono);font-size:8px;font-weight:400;letter-spacing:0.12em;text-transform:uppercase;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;}
+.rc-badge.live{background:var(--ink);color:var(--sand-0);}
+.rc-badge.idle{background:var(--sand-2);color:var(--ink-4);border:1px solid var(--sand-3);}
+.bdot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+.rc-badge.live .bdot{animation:blink 1.8s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1}55%{opacity:0.2}}
+.rc-meta{font-family:var(--mono);font-size:10px;font-weight:400;color:var(--ink-3);line-height:1.9;}
+.rc-meta strong{color:var(--ink-2);font-weight:500;}
+.sb-rule{height:1px;background:var(--sand-3);margin:24px 22px 0;}
+.sb-log{flex:1;overflow-y:auto;padding:20px 22px 24px;}
+.sb-log::-webkit-scrollbar{width:3px;}
+.sb-log::-webkit-scrollbar-thumb{background:var(--sand-3);border-radius:2px;}
+.log-empty{padding:36px 0;text-align:center;font-family:var(--mono);font-size:10px;font-weight:300;color:var(--ink-5);letter-spacing:0.1em;line-height:2.4;}
+.log-empty b{display:block;font-size:9px;text-transform:uppercase;letter-spacing:0.2em;margin-bottom:6px;color:var(--ink-4);font-weight:500;}
+.log-item{padding:11px 0;border-bottom:1px solid var(--sand-2);position:relative;}
+.log-item:first-child{border-top:1px solid var(--sand-2);}
+.log-item.fresh{animation:slideIn 0.3s var(--ease);}
+@keyframes slideIn{from{opacity:0;transform:translateY(-5px);}}
+.li-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;}
+.li-reactor{font-family:var(--sans);font-size:10px;font-weight:700;color:var(--ink);letter-spacing:0.08em;text-transform:uppercase;}
+.li-tp{font-family:var(--mono);font-size:10px;color:var(--ink-3);}
+.li-time{font-family:var(--mono);font-size:9px;color:var(--ink-4);}
+.li-vals{font-family:var(--mono);font-size:10px;font-weight:400;color:var(--ink-2);}
+.li-undo{position:absolute;right:0;bottom:9px;background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:8px;font-weight:300;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-4);padding:2px 0;transition:color 0.15s;}
+.li-undo:hover{color:var(--danger);}
+
+/* ── MAIN (log) ── */
+.main{padding:36px 48px;display:flex;flex-direction:column;gap:24px;overflow-y:auto;}
+.main::-webkit-scrollbar{width:3px;}
+.main::-webkit-scrollbar-thumb{background:var(--sand-3);border-radius:2px;}
+
+/* ── CONTEXT CARD ── */
+.ctx-card{background:var(--sand-1);border:1px solid var(--sand-3);border-radius:var(--radius-lg);overflow:hidden;}
+.ctx-top{display:flex;align-items:center;justify-content:space-between;padding:20px 26px;border-bottom:1px solid var(--sand-3);}
+.ctx-lhs{display:flex;flex-direction:column;gap:5px;}
+.ctx-eyebrow{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0.18em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:8px;}
+.ctx-eyebrow span{display:flex;align-items:center;gap:5px;color:var(--ink);}
+.rec-dot{width:6px;height:6px;border-radius:50%;background:var(--ink);animation:blink 1.8s ease-in-out infinite;}
+.run-id-big{font-family:var(--sans);font-size:28px;font-weight:800;color:var(--ink);letter-spacing:0.04em;text-transform:uppercase;line-height:1;}
+.run-id-big.empty{font-weight:400;font-size:16px;color:var(--ink-4);text-transform:none;letter-spacing:0;}
+.ctx-rhs{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.tp-badge{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--ink-2);letter-spacing:0.04em;}
+.tp-badge strong{color:var(--ink);font-weight:500;}
+.ctx-fields{display:grid;grid-template-columns:80px 1fr 1fr 80px 1fr 1fr;background:var(--sand-3);gap:1px;}
+.cf{background:var(--sand-0);padding:16px 20px;display:flex;flex-direction:column;gap:7px;}
+.cf-label{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);}
+.cf input,.cf select{background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--mono);font-size:14px;font-weight:400;width:100%;padding:0;border-bottom:1px solid transparent;transition:border-color 0.2s,color 0.2s;}
+.cf input:focus,.cf select:focus{border-bottom-color:var(--ink);}
+.cf input::placeholder{color:var(--ink-5);font-size:13px;font-weight:300;}
+.cf input.locked{color:var(--ink);font-weight:600;cursor:default;}
+.cf select{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%237a6e60' d='M5 6L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 2px center;padding-right:16px;}
+.cf select option{background:var(--sand-0);}
+#mode-other-row{display:none;background:var(--sand-0);border-top:1px solid var(--sand-3);}
+
+/* ── SECTION CARDS ── */
+.sec-card{background:var(--sand-1);border:1px solid var(--sand-3);border-radius:var(--radius-lg);overflow:hidden;}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 26px;border-bottom:1px solid var(--sand-3);cursor:pointer;user-select:none;transition:background 0.15s;}
+.sec-hd:hover{background:var(--sand-2);}
+.sec-title{display:flex;align-items:center;gap:14px;}
+.sec-num{font-family:var(--mono);font-size:10px;font-weight:300;color:var(--ink-4);letter-spacing:0.06em;width:20px;}
+.sec-name{font-family:var(--sans);font-size:13px;font-weight:700;color:var(--ink);letter-spacing:0.08em;text-transform:uppercase;}
+.sec-sub{font-family:var(--mono);font-size:9px;font-weight:400;color:var(--ink-3);letter-spacing:0.08em;}
+.sec-arrow{font-family:var(--mono);font-size:12px;color:var(--ink-4);transition:transform 0.2s var(--ease);}
+.sec-arrow.open{transform:rotate(180deg);}
+.sec-body{padding:26px;}
+.sec-body.hidden{display:none;}
+.fg{display:grid;gap:20px;}
+.fg.g4{grid-template-columns:repeat(4,1fr);}
+.fg.g3{grid-template-columns:repeat(3,1fr);}
+.fg.g2{grid-template-columns:repeat(2,1fr);}
+.fg+.fg{margin-top:22px;padding-top:22px;border-top:1px solid var(--sand-2);}
+.field{display:flex;flex-direction:column;gap:8px;}
+.f-label{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;justify-content:space-between;}
+.f-auto{font-size:8px;color:var(--ink-4);letter-spacing:0.1em;font-weight:400;text-transform:uppercase;}
+.f-unit{font-family:var(--mono);font-size:8px;color:var(--ink-4);letter-spacing:0.08em;margin-top:4px;}
+.f-input input{width:100%;background:var(--sand-0);border:1px solid var(--sand-3);border-radius:var(--radius);color:var(--ink);padding:11px 14px;font-family:var(--mono);font-size:16px;font-weight:300;outline:none;letter-spacing:0.02em;transition:border-color 0.2s,box-shadow 0.2s;}
+.f-input input:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(28,23,18,0.07);}
+.f-input input::placeholder{color:var(--ink-5);font-size:13px;}
+.f-input input.invalid{border-color:var(--danger);box-shadow:0 0 0 3px rgba(154,42,26,0.08);}
+.trig-wrap{display:flex;flex-direction:column;gap:6px;}
+.trig-select{width:100%;background:var(--sand-0);border:1px solid var(--sand-3);border-radius:var(--radius);color:var(--ink);padding:11px 30px 11px 14px;font-family:var(--mono);font-size:15px;font-weight:300;outline:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%237a6e60' d='M5 6L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;transition:border-color 0.2s;}
+.trig-select:focus{border-color:var(--ink);outline:none;}
+.trig-select option{background:var(--sand-0);}
+.trig-custom{display:none;width:100%;background:var(--sand-0);border:1px solid var(--sand-3);border-radius:var(--radius);color:var(--ink);padding:10px 14px;font-family:var(--mono);font-size:14px;font-weight:300;outline:none;transition:border-color 0.2s;}
+.trig-custom:focus{border-color:var(--ink);}
+.trig-custom::placeholder{color:var(--ink-5);}
+.gas-row{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:var(--sand-3);border-radius:var(--radius);overflow:hidden;margin-top:22px;}
+.gas-cell{background:var(--sand-0);padding:18px 20px;}
+.gas-cell+.gas-cell{border-left:1px solid var(--sand-3);}
+.gas-label{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.gas-auto-tag{font-size:7px;letter-spacing:0.12em;color:var(--ink-4);}
+.gas-val{font-family:var(--mono);font-size:30px;font-weight:300;color:var(--ink);line-height:1;letter-spacing:-0.01em;transition:color 0.3s;}
+.gas-val.empty{color:var(--ink-5);font-size:20px;}
+.gas-unit{font-family:var(--mono);font-size:9px;font-weight:400;color:var(--ink-3);margin-top:5px;letter-spacing:0.1em;}
+.sub-divider{grid-column:1/-1;display:flex;align-items:center;gap:14px;margin:6px 0;}
+.sub-divider span{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap;}
+.sub-divider::before,.sub-divider::after{content:'';flex:1;height:1px;background:var(--sand-3);}
+.action-row{display:flex;align-items:center;gap:14px;padding-top:4px;}
+.btn-primary{background:var(--ink);color:var(--sand-0);border:none;border-radius:var(--radius);padding:14px 36px;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;cursor:pointer;transition:background 0.2s,transform 0.15s var(--ease);position:relative;overflow:hidden;}
+.btn-primary::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(245,237,224,0.1) 0%,transparent 55%);pointer-events:none;}
+.btn-primary:hover{background:var(--ink-2);transform:translateY(-1px);}
+.btn-primary:active{transform:scale(0.99);}
+.btn-ghost{background:transparent;border:1px solid var(--sand-3);color:var(--ink-3);border-radius:var(--radius);padding:13px 22px;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:border-color 0.2s,color 0.2s;}
+.btn-ghost:hover{border-color:var(--ink-3);color:var(--ink);}
+.action-hint{font-family:var(--mono);font-size:10px;font-weight:400;color:var(--ink-3);letter-spacing:0.06em;margin-left:4px;}
+.action-hint.warn{color:var(--danger);}
+
+
+/* ── IMPORT PAGE ── */
+.import-page { padding: 36px 48px; display: flex; flex-direction: column; gap: 20px; min-height: calc(100vh - 104px); max-width: 1000px; }
+
+.imp-card { background: var(--sand-1); border: 1px solid var(--sand-3); border-radius: var(--radius-lg); overflow: hidden; transition: opacity 0.2s; }
+.imp-card-disabled { opacity: 0.45; pointer-events: none; }
+.imp-card-disabled.unlocked { opacity: 1; pointer-events: auto; }
+
+.imp-card-header { display: flex; align-items: flex-start; gap: 16px; padding: 20px 26px; border-bottom: 1px solid var(--sand-3); }
+.imp-step-num { font-family: var(--mono); font-size: 10px; font-weight: 300; color: var(--ink-4); letter-spacing: 0.06em; padding-top: 3px; width: 20px; flex-shrink: 0; }
+.imp-title { font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: 0.08em; text-transform: uppercase; }
+.imp-sub { font-family: var(--mono); font-size: 9px; font-weight: 400; color: var(--ink-3); letter-spacing: 0.08em; margin-top: 3px; }
+.imp-sub em { font-style: normal; color: var(--ink-2); }
+.imp-stats { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.stat-pill { font-family: var(--mono); font-size: 10px; font-weight: 400; padding: 3px 10px; border-radius: 12px; }
+.stat-ok   { background: rgba(45,122,74,0.1);  color: #2d7a4a; border: 1px solid rgba(45,122,74,0.2); }
+.stat-warn { background: rgba(180,120,0,0.1);   color: #8a6000; border: 1px solid rgba(180,120,0,0.2); }
+.stat-err  { background: rgba(154,42,26,0.1);   color: var(--danger); border: 1px solid rgba(154,42,26,0.2); }
+
+.imp-card-body { padding: 22px 26px; }
+.imp-card-footer { padding: 16px 26px; border-top: 1px solid var(--sand-3); display: flex; align-items: center; gap: 14px; background: var(--sand-0); }
+
+.url-input-wrap { display: flex; gap: 12px; align-items: center; }
+.imp-url-input { flex: 1; background: var(--sand-0); border: 1px solid var(--sand-3); border-radius: var(--radius); color: var(--ink); padding: 12px 16px; font-family: var(--mono); font-size: 13px; font-weight: 300; outline: none; transition: border-color 0.2s; }
+.imp-url-input:focus { border-color: var(--ink); }
+.imp-url-input::placeholder { color: var(--ink-5); }
+.imp-url-input.error { border-color: var(--danger); }
+
+.imp-hint { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--ink-3); margin-top: 10px; letter-spacing: 0.04em; }
+.imp-hint.error { color: var(--danger); }
+.imp-hint.success { color: #2d7a4a; }
+
+.imp-placeholder { font-family: var(--mono); font-size: 11px; font-weight: 300; color: var(--ink-5); letter-spacing: 0.04em; }
+
+/* Tab chips */
+.tab-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab-chip { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--ink-3); background: var(--sand-0); border: 1px solid var(--sand-3); border-radius: 6px; padding: 8px 16px; cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s; letter-spacing: 0.06em; }
+.tab-chip:hover { border-color: var(--ink-3); color: var(--ink-2); }
+.tab-chip.selected { background: var(--ink); color: var(--sand-0); border-color: var(--ink); }
+.tab-chip.matched { border-color: #2d7a4a; color: #2d7a4a; background: rgba(45,122,74,0.06); }
+.tab-chip.matched.selected { background: #2d7a4a; color: var(--sand-0); border-color: #2d7a4a; }
+
+/* Validation table */
+.val-table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+.val-table-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+.val-table-wrap::-webkit-scrollbar-thumb { background: var(--sand-3); border-radius: 2px; }
+
+.val-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; }
+.val-table thead tr { background: var(--sand-2); position: sticky; top: 0; z-index: 2; }
+.val-table thead th { padding: 10px 14px; text-align: left; font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--sand-3); white-space: nowrap; }
+.val-table tbody tr { border-bottom: 1px solid var(--sand-2); transition: background 0.1s; }
+.val-table tbody tr:hover { background: var(--sand-1); }
+.val-table tbody tr.row-ok   { border-left: 3px solid #2d7a4a; }
+.val-table tbody tr.row-warn { border-left: 3px solid #c8880a; }
+.val-table tbody tr.row-err  { border-left: 3px solid var(--danger); background: rgba(154,42,26,0.03); }
+.val-table td { padding: 9px 14px; color: var(--ink-2); white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.val-table td.cell-err { color: var(--danger); font-weight: 500; }
+.val-table td.cell-warn { color: #8a6000; }
+.val-table td.cell-empty { color: var(--ink-5); font-style: italic; }
+.row-status { display: inline-flex; align-items: center; gap: 4px; font-size: 8px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 10px; }
+.row-status.ok   { background: rgba(45,122,74,0.1);  color: #2d7a4a; }
+.row-status.warn { background: rgba(180,120,0,0.1);   color: #8a6000; }
+.row-status.err  { background: rgba(154,42,26,0.1);   color: var(--danger); }
+
+/* Success screen */
+.imp-success-icon { font-size: 36px; color: var(--ink-3); margin-bottom: 16px; }
+.imp-success-title { font-family: var(--sans); font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
+.imp-success-sub { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+
+/* Loading spinner */
+.imp-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--sand-3); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:32px;right:32px;z-index:500;background:var(--ink);border-radius:var(--radius-lg);padding:18px 22px;display:flex;align-items:flex-start;gap:16px;min-width:320px;box-shadow:0 16px 48px rgba(28,23,18,0.2),0 4px 12px rgba(28,23,18,0.12);opacity:0;pointer-events:none;transform:translateY(12px);transition:opacity 0.28s var(--ease),transform 0.28s var(--ease);overflow:hidden;}
+.toast.show{opacity:1;pointer-events:auto;transform:translateY(0);}
+.toast-icon{width:32px;height:32px;border-radius:50%;background:rgba(245,237,224,0.1);border:1px solid rgba(245,237,224,0.15);display:flex;align-items:center;justify-content:center;color:var(--sand-0);font-size:14px;flex-shrink:0;}
+.toast-body{flex:1;}
+.toast-title{font-family:var(--sans);font-size:14px;font-weight:700;color:var(--sand-0);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:4px;}
+.toast-sub{font-family:var(--mono);font-size:10px;font-weight:300;color:var(--sand-3);letter-spacing:0.04em;}
+.toast-undo{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:0.14em;text-transform:uppercase;color:var(--sand-3);background:rgba(245,237,224,0.08);border:1px solid rgba(245,237,224,0.15);border-radius:4px;padding:6px 12px;cursor:pointer;align-self:center;flex-shrink:0;transition:background 0.15s,color 0.15s;}
+.toast-undo:hover{background:rgba(245,237,224,0.14);color:var(--sand-0);}
+.toast-bar{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--sand-3);transform-origin:left;}
+
+/* ── ANALYTICS PAGE ── */
+.analytics-page{padding:36px 48px;display:flex;flex-direction:column;gap:32px;min-height:calc(100vh - 104px);}
+
+/* Chart section */
+.chart-section{background:var(--sand-1);border:1px solid var(--sand-3);border-radius:var(--radius-lg);overflow:hidden;}
+.cs-header{padding:20px 28px;border-bottom:1px solid var(--sand-3);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.cs-title-group{display:flex;align-items:center;gap:14px;}
+.cs-num{font-family:var(--mono);font-size:10px;font-weight:300;color:var(--ink-4);letter-spacing:0.06em;}
+.cs-title{font-family:var(--sans);font-size:13px;font-weight:700;color:var(--ink);letter-spacing:0.08em;text-transform:uppercase;}
+.cs-sub{font-family:var(--mono);font-size:9px;font-weight:400;color:var(--ink-3);letter-spacing:0.08em;margin-top:2px;}
+.cs-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ctrl-select{font-family:var(--mono);font-size:11px;font-weight:400;background:var(--sand-0);border:1px solid var(--sand-3);border-radius:var(--radius);color:var(--ink-2);padding:6px 28px 6px 12px;outline:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%237a6e60' d='M4 5L0 0h8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color 0.2s;}
+.ctrl-select:focus{border-color:var(--ink);outline:none;}
+.ctrl-select option{background:var(--sand-0);}
+
+/* Legend */
+.legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.leg-item{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;font-weight:400;color:var(--ink-3);cursor:pointer;user-select:none;}
+.leg-item.dim{opacity:0.35;}
+.leg-swatch{width:20px;height:2px;border-radius:2px;}
+.leg-dot{width:8px;height:8px;border-radius:50%;}
+
+.chart-body{padding:24px 28px 20px;}
+.chart-wrap{width:100%;position:relative;}
+svg.chart{width:100%;overflow:visible;}
+svg.chart text{font-family:'IBM Plex Mono',monospace;}
+
+/* Axis styles applied via JS */
+.axis-label{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#5a4e40;letter-spacing:0.1em;text-transform:uppercase;}
+.chart-title-label{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;fill:#1c1712;letter-spacing:0.08em;text-transform:uppercase;}
+
+/* Tooltip */
+.chart-tooltip{position:absolute;background:var(--ink);color:var(--sand-0);border-radius:var(--radius);padding:10px 14px;font-family:var(--mono);font-size:11px;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:100;min-width:140px;box-shadow:0 8px 24px rgba(28,23,18,0.25);}
+.tt-label{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--sand-3);margin-bottom:6px;}
+.tt-row{display:flex;justify-content:space-between;gap:16px;margin-bottom:2px;}
+.tt-key{color:var(--sand-3);}
+.tt-val{color:var(--sand-0);font-weight:500;}
+
+/* Reactor colour pills in analytics */
+.rc-pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;padding:3px 9px;border-radius:12px;}
+.rc-pill.r1{background:var(--r1-light);color:var(--r1);border:1px solid rgba(45,74,138,0.2);}
+.rc-pill.r2{background:var(--r2-light);color:var(--r2);border:1px solid rgba(138,45,45,0.2);}
+.rc-pill.r3{background:var(--r3-light);color:var(--r3);border:1px solid rgba(45,122,74,0.2);}
+
+/* KPI strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--sand-3);}
+.kpi{background:var(--sand-0);padding:16px 20px;}
+.kpi-label{font-family:var(--mono);font-size:8px;font-weight:400;letter-spacing:0.18em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px;}
+.kpi-val{font-family:var(--mono);font-size:24px;font-weight:300;color:var(--ink);line-height:1;}
+.kpi-unit{font-family:var(--mono);font-size:9px;color:var(--ink-4);margin-top:4px;letter-spacing:0.08em;}
+.kpi-delta{font-family:var(--mono);font-size:10px;margin-top:4px;}
+.kpi-delta.up{color:#2d7a4a;}
+.kpi-delta.dn{color:#8a2d2d;}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="wordmark">
+    <span class="wm-name">Ossus</span>
+    <span class="wm-divider"></span>
+    <span class="wm-sub">Field Log System</span>
+  </div>
+  <div class="topbar-centre"><div class="site-pill">▸ BLOB1-1</div></div>
+  <div class="topbar-right">
+    <div class="clock-block">
+      <div class="clock-time" id="clock">00:00:00</div>
+      <div class="clock-label">Local time</div>
+    </div>
+    <div class="op-pill">
+      <div class="op-av">OP</div>
+      <span class="op-name">Operator</span>
+    </div>
+  </div>
+</header>
+
+<!-- PAGE TABS -->
+<nav class="page-tabs">
+  <div class="ptab active" id="ptab-log" onclick="switchPage('log')">
+    Log <span class="ptab-count" id="ptab-log-count">0</span>
+  </div>
+  <div class="ptab" id="ptab-analytics" onclick="switchPage('analytics')">
+    Analytics <span class="ptab-count">3</span>
+  </div>
+  <div class="ptab" id="ptab-import" onclick="switchPage('import')">
+    Import <span class="ptab-count" id="ptab-import-count">0</span>
+  </div>
+</nav>
+
+<!-- ══ LOG PAGE ══ -->
+<div class="page active" id="page-log">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="eyebrow">Reactors</div>
+
+      <!-- Status control strip -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-family:var(--mono);font-size:8px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-4);">Set status</span>
+        <div style="display:flex;gap:6px;">
+          <button onclick="setAllReactorStatus('live')" style="font-family:var(--mono);font-size:8px;letter-spacing:0.08em;text-transform:uppercase;background:var(--ink);color:var(--sand-0);border:none;border-radius:4px;padding:4px 10px;cursor:pointer;">All live</button>
+          <button onclick="setAllReactorStatus('idle')" style="font-family:var(--mono);font-size:8px;letter-spacing:0.08em;text-transform:uppercase;background:transparent;color:var(--ink-3);border:1px solid var(--sand-3);border-radius:4px;padding:4px 10px;cursor:pointer;">All idle</button>
+        </div>
+      </div>
+
+        <div class="rc-list" id="rc-list-container">
+          <!-- Populated by JS -->
+        </div>
+        <div class="sb-rule"></div>
+      </div>
+      <div class="sb-log">
+        <div class="eyebrow" style="margin-bottom:16px;">Today's entries</div>
+        <div id="log-list"><div class="log-empty"><b>Nothing logged yet</b>Select a reactor<br>and begin your run</div></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- Context card -->
+      <div class="ctx-card">
+        <div class="ctx-top">
+          <div class="ctx-lhs">
+            <div class="ctx-eyebrow">Active run &nbsp;·&nbsp; <span><span class="rec-dot"></span>Recording</span></div>
+            <div class="run-id-big empty" id="run-id-display">Set a run ID →</div>
+          </div>
+          <div class="ctx-rhs">
+            <div class="tp-badge">Timepoints today: <strong id="tp-count">0</strong></div>
+          </div>
+        </div>
+        <div class="ctx-fields">
+          <div class="cf"><div class="cf-label">Reactor</div><input type="text" id="f-reactor" value="R1" class="locked" readonly></div>
+          <div class="cf"><div class="cf-label">Run ID</div><input type="text" id="f-runid" placeholder="R1-2026-001" oninput="onRunId()"></div>
+          <div class="cf"><div class="cf-label">Date</div><input type="date" id="f-date"></div>
+          <div class="cf"><div class="cf-label">Day</div><input type="number" id="f-day" min="1" placeholder="1" oninput="onDay()"></div>
+          <div class="cf"><div class="cf-label">Mode</div>
+            <select id="f-mode" onchange="onMode()">
+              <option value="">— select</option>
+              <option>MEC</option><option>OC — open circuit</option>
+              <option>Short circuit</option><option>CV — cyclic voltammetry</option>
+              <option>CA — chronoamperometry</option><option value="OTHER">Other…</option>
+            </select>
+          </div>
+          <div class="cf"><div class="cf-label">Feedstock</div>
+            <select id="f-feedstock" onchange="onFeedstock()">
+              <option value="">— select</option>
+              <option value="CSL_raw">CSL raw</option>
+              <option value="CSL_pH">CSL pH adjusted</option>
+              <option value="FCSL">Fermented CSL</option>
+              <option value="FCSL_pH">Fermented CSL pH adjusted</option>
+            </select>
+          </div>
+        </div>
+        <div id="mode-other-row"><div class="cf" style="background:var(--sand-0);border-top:1px solid var(--sand-3);"><div class="cf-label">Mode — specify</div><input type="text" id="f-mode-other" placeholder="Describe operating mode…"></div></div>
+      </div>
+
+      <!-- Electrical & gas -->
+      <div class="sec-card">
+        <div class="sec-hd" onclick="toggleSec('elec')">
+          <div class="sec-title"><span class="sec-num">01</span><div><div class="sec-name">Electrical &amp; Gas</div><div class="sec-sub">Voltage · current · gas composition</div></div></div>
+          <span class="sec-arrow open" id="arr-elec">▾</span>
+        </div>
+        <div class="sec-body" id="body-elec">
+          <div class="fg g4">
+            <div class="field"><div class="f-label">Timepoint</div><div class="f-input"><input type="text" id="f-tp" placeholder="T1 or 14:30"></div></div>
+            <div class="field"><div class="f-label">Voltage <span style="font-size:8px;color:var(--ink-4)">V</span></div><div class="f-input"><input type="number" id="f-voltage" placeholder="0.000" step="0.001"></div></div>
+            <div class="field"><div class="f-label">Current <span style="font-size:8px;color:var(--ink-4)">mA</span></div><div class="f-input"><input type="number" id="f-current" placeholder="0.00" step="0.01"></div></div>
+            <div class="field"><div class="f-label">Total gas <span style="font-size:8px;color:var(--ink-4)">L</span></div><div class="f-input"><input type="number" id="f-totalgas" placeholder="0.0" step="0.1" oninput="computeGas()"></div></div>
+          </div>
+          <div class="fg g2" style="margin-top:20px;">
+            <div class="field"><div class="f-label">H₂ composition <span style="font-size:8px;color:var(--ink-4)">%</span></div><div class="f-input"><input type="number" id="f-h2pct" placeholder="0.0" step="0.1" min="0" max="100" oninput="computeGas()"></div></div>
+            <div class="field"><div class="f-label">CO₂ composition <span style="font-size:8px;color:var(--ink-4)">%</span></div><div class="f-input"><input type="number" id="f-co2pct" placeholder="0.0" step="0.1" min="0" max="100" oninput="computeGas()"></div></div>
+          </div>
+          <div class="gas-row">
+            <div class="gas-cell"><div class="gas-label">Interval gas <span class="gas-auto-tag">AUTO</span></div><div class="gas-val empty" id="gv-ig">—</div><div class="gas-unit">L</div></div>
+            <div class="gas-cell"><div class="gas-label">H₂ volume <span class="gas-auto-tag">AUTO</span></div><div class="gas-val empty" id="gv-h2">—</div><div class="gas-unit">L</div></div>
+            <div class="gas-cell"><div class="gas-label">CO₂ volume <span class="gas-auto-tag">AUTO</span></div><div class="gas-val empty" id="gv-co2">—</div><div class="gas-unit">L</div></div>
+          </div>
+          <div class="fg g2" style="margin-top:22px;padding-top:22px;border-top:1px solid var(--sand-2);">
+            <div class="field"><div class="f-label">Trigger</div>
+              <div class="trig-wrap">
+                <select class="trig-select" id="f-trigger" onchange="onTrigger()">
+                  <option value="">— select</option><option>Timer</option><option>Manual</option>
+                  <option>Pressure threshold</option><option>Gas accumulation</option>
+                  <option>Schedule</option><option value="OTHER">Other…</option>
+                </select>
+                <input class="trig-custom" type="text" id="f-trigger-custom" placeholder="Describe trigger…">
+              </div>
+            </div>
+            <div class="field"><div class="f-label">Observations <span class="f-auto">optional</span></div><div class="f-input"><input type="text" id="f-notes" placeholder="Anomalies, colour, odour…"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chemistry -->
+      <div class="sec-card">
+        <div class="sec-hd" onclick="toggleSec('chem')">
+          <div class="sec-title"><span class="sec-num">02</span><div><div class="sec-name">Chemistry</div><div class="sec-sub">pH · conductivity — T0 / Tend only</div></div></div>
+          <span class="sec-arrow" id="arr-chem">▾</span>
+        </div>
+        <div class="sec-body hidden" id="body-chem">
+          <div class="fg g4">
+            <div class="sub-divider"><span>Fermentation liquid</span></div>
+            <div class="field"><div class="f-label">pH ferm T0</div><div class="f-input"><input type="number" id="f-ph-ferm-t0" placeholder="7.00" step="0.01"></div></div>
+            <div class="field"><div class="f-label">Cond. ferm T0 <span style="font-size:8px;color:var(--ink-4)">mS/cm</span></div><div class="f-input"><input type="number" id="f-cond-ferm-t0" placeholder="0.00" step="0.01"></div></div>
+            <div class="field"><div class="f-label">pH ferm Tend</div><div class="f-input"><input type="number" id="f-ph-ferm-tend" placeholder="7.00" step="0.01"></div></div>
+            <div class="field"><div class="f-label">Cond. ferm Tend <span style="font-size:8px;color:var(--ink-4)">mS/cm</span></div><div class="f-input"><input type="number" id="f-cond-ferm-tend" placeholder="0.00" step="0.01"></div></div>
+            <div class="sub-divider"><span>Reactor liquid</span></div>
+            <div class="field"><div class="f-label">pH reac T0</div><div class="f-input"><input type="number" id="f-ph-reac-t0" placeholder="7.00" step="0.01"></div></div>
+            <div class="field"><div class="f-label">Cond. reac T0 <span style="font-size:8px;color:var(--ink-4)">mS/cm</span></div><div class="f-input"><input type="number" id="f-cond-reac-t0" placeholder="0.00" step="0.01"></div></div>
+            <div class="field"><div class="f-label">pH reac Tend</div><div class="f-input"><input type="number" id="f-ph-reac-tend" placeholder="7.00" step="0.01"></div></div>
+            <div class="field"><div class="f-label">Cond. reac Tend <span style="font-size:8px;color:var(--ink-4)">mS/cm</span></div><div class="f-input"><input type="number" id="f-cond-reac-tend" placeholder="0.00" step="0.01"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn-primary" onclick="submitEntry()">Log timepoint</button>
+        <button class="btn-ghost" onclick="clearTP()">Clear</button>
+        <span class="action-hint" id="action-hint">Timepoint, voltage, current and total gas required.</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ══ ANALYTICS PAGE ══ -->
+<div class="page" id="page-analytics">
+  <div class="analytics-page">
+
+    <!-- Export toolbar -->
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:4px;">
+      <button class="btn-ghost" style="font-size:11px;padding:8px 18px;" onclick="exportCSV()">↓ Export CSV</button>
+      <button class="btn-ghost" style="font-size:11px;padding:8px 18px;display:none;" id="push-sheets-btn" onclick="pushAllToSheets()">↑ Push to Sheets</button>
+    </div>
+
+    <!-- Debug panel -->
+    <div id="debug-panel" style="background:#1c1712;color:#00ff88;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:14px 18px;border-radius:8px;display:none;">
+      <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#5a4e40;margin-bottom:8px;">Data store</div>
+      <div id="debug-content">—</div>
+      <button onclick="document.getElementById('debug-panel').style.display='none'" style="margin-top:10px;background:none;border:1px solid #3a3028;color:#5a4e40;font-family:inherit;font-size:9px;padding:3px 8px;cursor:pointer;border-radius:3px;">close</button>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="sec-card">
+      <div class="kpi-strip">
+        <div class="kpi"><div class="kpi-label">Total H₂ produced</div><div class="kpi-val" id="kpi-h2">—</div><div class="kpi-unit">L across all runs</div></div>
+        <div class="kpi"><div class="kpi-label">Best FE</div><div class="kpi-val" id="kpi-fe">—</div><div class="kpi-unit">% Faradaic efficiency</div></div>
+        <div class="kpi"><div class="kpi-label">Avg current</div><div class="kpi-val" id="kpi-cd">—</div><div class="kpi-unit">A per electrode (×6 series)</div></div>
+        <div class="kpi"><div class="kpi-label">Timepoints logged</div><div class="kpi-val" id="kpi-tp">—</div><div class="kpi-unit">total entries</div></div>
+      </div>
+    </div>
+
+    <!-- CHART 1: Toggleable multi-series time series -->
+    <div class="chart-section">
+      <div class="cs-header">
+        <div class="cs-title-group">
+          <span class="cs-num">01</span>
+          <div>
+            <div class="cs-title">Run behaviour</div>
+            <div class="cs-sub">Toggle series · filter by reactor, run, date, day</div>
+          </div>
+        </div>
+        <div class="cs-controls" style="flex-wrap:wrap;gap:8px;">
+          <select class="ctrl-select" id="ts-reactor-a" onchange="buildRunFilter();renderTimeSeries()">
+            <option value="">— reactor A</option>
+          </select>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--ink-4);">vs</span>
+          <select class="ctrl-select" id="ts-reactor-b" onchange="renderTimeSeries()">
+            <option value="">— reactor B</option>
+          </select>
+          <select class="ctrl-select" id="ts-run" onchange="renderTimeSeries()">
+            <option value="ALL">All runs</option>
+          </select>
+          <select class="ctrl-select" id="ts-date" onchange="renderTimeSeries()">
+            <option value="ALL">All dates</option>
+          </select>
+          <select class="ctrl-select" id="ts-day" onchange="renderTimeSeries()">
+            <option value="ALL">All days</option>
+          </select>
+        </div>
+      </div>
+      <div style="padding:12px 28px;border-bottom:1px solid var(--sand-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-family:var(--mono);font-size:8px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-4);margin-right:4px;">Series</span>
+        <label class="series-toggle"><input type="checkbox" id="tog-voltage" checked onchange="renderTimeSeries()"> Voltage (V)</label>
+        <label class="series-toggle"><input type="checkbox" id="tog-current" checked onchange="renderTimeSeries()"> Current (A)</label>
+        <label class="series-toggle"><input type="checkbox" id="tog-h2vol" checked onchange="renderTimeSeries()"> H₂ vol (L)</label>
+        <label class="series-toggle"><input type="checkbox" id="tog-co2vol" onchange="renderTimeSeries()"> CO₂ vol (L)</label>
+        <label class="series-toggle"><input type="checkbox" id="tog-totalgas" onchange="renderTimeSeries()"> Total gas (L)</label>
+        <label class="series-toggle"><input type="checkbox" id="tog-intervalgas" onchange="renderTimeSeries()"> Interval gas (L)</label>
+      </div>
+      <div class="chart-body">
+        <div class="chart-wrap" style="position:relative;height:320px;">
+          <canvas id="ts-chart" style="width:100%;max-height:320px;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHART 2: Day comparison -->
+    <div class="chart-section">
+      <div class="cs-header">
+        <div class="cs-title-group">
+          <span class="cs-num">02</span>
+          <div>
+            <div class="cs-title">Day comparison</div>
+            <div class="cs-sub">Select runs to compare · same timepoints aligned · each run a distinct colour</div>
+          </div>
+        </div>
+        <div class="cs-controls">
+          <select class="ctrl-select" id="day-reactor" onchange="buildDayRunList()">
+            <option value="">— select reactor</option>
+          </select>
+          <select class="ctrl-select" id="day-metric" onchange="renderDayComparison()">
+            <option value="h2vol">H₂ vol (L)</option>
+            <option value="voltage">Voltage (V)</option>
+            <option value="current">Current (A)</option>
+            <option value="co2vol">CO₂ vol (L)</option>
+            <option value="totalgas">Total gas (L)</option>
+            <option value="intervalgas">Interval gas (L)</option>
+          </select>
+        </div>
+      </div>
+      <!-- Run picker -->
+      <div style="padding:14px 28px;border-bottom:1px solid var(--sand-3);">
+        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-family:var(--mono);font-size:8px;letter-spacing:0.18em;text-transform:uppercase;color:var(--ink-4);margin-bottom:8px;">Add run</div>
+            <select class="ctrl-select" id="day-run-picker" onchange="addDayRun(this.value);this.value=''">
+              <option value="">— pick a run to add</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <div style="font-family:var(--mono);font-size:8px;letter-spacing:0.18em;text-transform:uppercase;color:var(--ink-4);margin-bottom:8px;">Selected runs <span id="day-run-count" style="color:var(--ink-3);">(0)</span></div>
+            <div id="day-run-chips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;align-items:center;">
+              <span style="font-family:var(--mono);font-size:10px;color:var(--ink-5);">No runs selected — pick from the dropdown above</span>
+            </div>
+          </div>
+          <button class="btn-ghost" style="padding:7px 14px;font-size:10px;margin-top:18px;" onclick="clearDayRuns()">Clear all</button>
+        </div>
+      </div>
+      <div class="chart-body">
+        <div class="chart-wrap" style="position:relative;height:320px;">
+          <canvas id="day-chart" style="width:100%;max-height:320px;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHART 3: Run summary -->
+    <div class="chart-section">
+      <div class="cs-header">
+        <div class="cs-title-group">
+          <span class="cs-num">03</span>
+          <div>
+            <div class="cs-title">Run summary</div>
+            <div class="cs-sub">Total H₂ per run · Faradaic efficiency overlay</div>
+          </div>
+        </div>
+        <div class="cs-controls">
+          <select class="ctrl-select" id="bar-reactor-a" onchange="renderBarChart()">
+            <option value="">— reactor A</option>
+          </select>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--ink-4);">vs</span>
+          <select class="ctrl-select" id="bar-reactor-b" onchange="renderBarChart()">
+            <option value="">— reactor B</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-body">
+        <div class="legend" id="bar-legend" style="margin-bottom:16px;"></div>
+        <div class="chart-wrap" style="position:relative;height:260px;">
+          <canvas id="bar-chart" style="width:100%;max-height:260px;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHART 4: Scatter -->
+    <div class="chart-section">
+      <div class="cs-header">
+        <div class="cs-title-group">
+          <span class="cs-num">04</span>
+          <div>
+            <div class="cs-title">Performance scatter</div>
+            <div class="cs-sub">Select timepoint · each point = one run · FE interval vs FE cumulative</div>
+          </div>
+        </div>
+        <div class="cs-controls">
+          <select class="ctrl-select" id="sc-tp" onchange="buildScatterTP();renderScatter()">
+            <option value="">— select timepoint</option>
+          </select>
+          <select class="ctrl-select" id="sc-reactor" onchange="renderScatter()">
+            <option value="ALL">All reactors</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-body">
+        <div class="legend" id="sc-legend" style="margin-bottom:16px;"></div>
+        <div class="chart-wrap" style="position:relative;height:300px;">
+          <canvas id="sc-chart" style="width:100%;max-height:300px;"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══ IMPORT PAGE ══ -->
+<div class="page" id="page-import">
+  <div class="import-page">
+
+    <!-- Step 1: URL input -->
+    <div class="imp-card" id="imp-step-url">
+      <div class="imp-card-header">
+        <div class="imp-step-num">01</div>
+        <div>
+          <div class="imp-title">Paste Google Sheet URL</div>
+          <div class="imp-sub">Sheet must be set to <em>Anyone with the link can view</em></div>
+        </div>
+      </div>
+      <div class="imp-card-body">
+        <div class="url-input-wrap">
+          <input type="text" id="imp-url" class="imp-url-input" placeholder="https://docs.google.com/spreadsheets/d/…">
+          <button class="btn-primary" onclick="fetchSheetMeta()" id="btn-fetch">Fetch sheet</button>
+        </div>
+        <div class="imp-hint" id="imp-url-hint">Paste any Google Sheets share link — we extract the sheet ID automatically.</div>
+
+        <!-- Paste fallback -->
+        <div id="paste-fallback" style="display:none;margin-top:24px;padding-top:20px;border-top:1px solid var(--sand-3);">
+          <div style="font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px;">
+            — or paste CSV text directly —
+          </div>
+          <textarea id="paste-csv-input" placeholder="Paste your CSV here (with header row)…" style="width:100%;height:140px;background:var(--sand-0);border:1px solid var(--sand-3);border-radius:var(--radius);color:var(--ink);padding:12px 14px;font-family:var(--mono);font-size:11px;font-weight:300;outline:none;resize:vertical;line-height:1.6;"></textarea>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+            <button class="btn-primary" onclick="parsePastedCSV()">Parse CSV</button>
+            <span id="paste-hint" class="imp-hint" style="margin-top:0;"></span>
+          </div>
+          <div class="imp-hint" style="margin-top:8px;">Copy all from your Google Sheet (Ctrl+A, Ctrl+C) and paste here as a fallback if the URL fetch fails.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Tab selector -->
+    <div class="imp-card imp-card-disabled" id="imp-step-tab">
+      <div class="imp-card-header">
+        <div class="imp-step-num">02</div>
+        <div>
+          <div class="imp-title">Select reactor tab</div>
+          <div class="imp-sub">Choose which tab to import data from</div>
+        </div>
+      </div>
+      <div class="imp-card-body">
+        <div class="tab-chips" id="tab-chips">
+          <div class="imp-placeholder">Fetch a sheet first to see available tabs</div>
+        </div>
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;" id="imp-tab-actions" style="display:none;">
+          <button class="btn-primary" onclick="fetchTabData()" id="btn-load-tab" disabled>Load tab data</button>
+          <span class="imp-hint" id="imp-tab-hint"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Validation table -->
+    <div class="imp-card imp-card-disabled" id="imp-step-validate">
+      <div class="imp-card-header">
+        <div class="imp-step-num">03</div>
+        <div>
+          <div class="imp-title">Review &amp; validate</div>
+          <div class="imp-sub">Fix errors before committing — amber rows import with warnings, red rows are excluded</div>
+        </div>
+        <div class="imp-stats" id="imp-stats"></div>
+      </div>
+      <div class="imp-card-body" style="padding:0;">
+        <div class="val-table-wrap" id="val-table-wrap">
+          <div class="imp-placeholder" style="padding:24px;">Load a tab to see validation results</div>
+        </div>
+      </div>
+      <div class="imp-card-footer" id="imp-footer" style="display:none;">
+        <button class="btn-primary" onclick="commitImport()" id="btn-commit">Commit valid rows</button>
+        <button class="btn-ghost" onclick="resetImport()">Start over</button>
+        <span class="imp-hint" id="imp-commit-hint"></span>
+      </div>
+    </div>
+
+    <!-- Step 4: Success -->
+    <div class="imp-card" id="imp-step-success" style="display:none;">
+      <div class="imp-card-body" style="text-align:center;padding:40px;">
+        <div class="imp-success-icon">✦</div>
+        <div class="imp-success-title" id="imp-success-title">Import complete</div>
+        <div class="imp-success-sub" id="imp-success-sub"></div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;">
+          <button class="btn-primary" onclick="switchPage('analytics')">View in Analytics</button>
+          <button class="btn-ghost" onclick="resetImport()">Import another</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-icon">✦</div>
+  <div class="toast-body">
+    <div class="toast-title" id="toast-title">Timepoint logged</div>
+    <div class="toast-sub" id="toast-sub">—</div>
+  </div>
+  <button class="toast-undo" onclick="undoLast()">↩ Undo</button>
+  <div class="toast-bar" id="toast-bar"></div>
+</div>
+
+<script>
+// ── COLOURS & NAMES defined in state block above ──
+
+// ── STATE ──
+const REACTORS = ['R1','R2','R3','R4','R5','R6','R7'];
+const RC_NAMES = { R1:'OB1-1', R2:'OB1-2', R3:'OB1-3', R4:'OB1-4', R5:'OB1-5', R6:'OB1-6', R7:'SDR' };
+const RC_COLORS = { R1:'#2d4a8a', R2:'#8a2d2d', R3:'#2d7a4a', R4:'#7a5a2d', R5:'#5a2d7a', R6:'#2d6a7a', R7:'#1c1712' };
+
+const S = {
+  reactor:'R1',
+  runIds:    {R1:'',R2:'',R3:'',R4:'',R5:'',R6:'',R7:''},
+  days:      {R1:'',R2:'',R3:'',R4:'',R5:'',R6:'',R7:''},
+  modes:     {R1:'',R2:'',R3:'',R4:'',R5:'',R6:'',R7:''},
+  feedstocks:{R1:'',R2:'',R3:'',R4:'',R5:'',R6:'',R7:''},
+  tpCount:   {R1:0,R2:0,R3:0,R4:0,R5:0,R6:0,R7:0},
+  lastGas:   {R1:null,R2:null,R3:null,R4:null,R5:null,R6:null,R7:null},
+  status:    {R1:'idle',R2:'idle',R3:'idle',R4:'idle',R5:'idle',R6:'idle',R7:'idle'},
+  entries:[], last:null
+};
+
+// ── SEED DATA for charts (realistic BES values) ──
+// No seed data — charts populate from real entries only
+
+// FE calculation: FE(%) = (n_H2 * 2 * F) / (I * t) * 100
+// Simplified per-run: FE = total_h2_mol * 2 * 96485 / (avg_I_A * duration_s) * 100
+// We use a simplified proxy: FE ≈ (H2vol_mL / 11200) * 2 * 96485 / (I_A * 3600) * 100
+function calcFE(totalH2mL, avgCurrentmA, durationHr) {
+  if (!totalH2mL || !avgCurrentmA || !durationHr) return null;
+  const n_H2 = totalH2mL / 22400; // mol at STP
+  const charge = (avgCurrentmA / 1000) * durationHr * 3600; // coulombs
+  const fe = (n_H2 * 2 * 96485) / charge * 100;
+  return Math.min(fe, 100);
+}
+
+function getRunSummaries(filterReactors) {
+  const visible = S.entries.filter(e => !e.deleted);
+  const runMap = {};
+  visible.forEach(e => {
+    if (filterReactors && filterReactors.length && !filterReactors.includes(e.reactor)) return;
+    const key = e.runid || (e.reactor + '-unknown');
+    if (!runMap[key]) runMap[key] = { runid: key, reactor: e.reactor, entries: [] };
+    runMap[key].entries.push(e);
+  });
+  return Object.values(runMap).map(r => {
+    const es = r.entries.sort((a,b) => String(a.timepoint).localeCompare(String(b.timepoint),undefined,{numeric:true}));
+    // Total H2 = sum of h2vol across all timepoints (each timepoint records interval h2)
+    const totalH2  = es.reduce((s,e) => s + (parseFloat(e.h2vol)||0), 0);
+    // Total gas = sum of intervalgas (not totalgas which is cumulative)
+    const totalGas = es.reduce((s,e) => s + (parseFloat(e.intervalgas)||0), 0);
+    const avgI     = es.reduce((s,e) => s + (parseFloat(e.current)||0), 0) / (es.length||1);
+    const avgV     = es.reduce((s,e) => s + (parseFloat(e.voltage)||0), 0) / (es.length||1);
+    // FE = (mol H₂ × 2 × F) / (I_total × t_s) × 100
+    // 6 electrodes in series → total current = logged current × 6
+    // h2vol is already interval H₂ in litres — sum across run
+    const totalMolH2  = totalH2 / 22.4;           // mol H₂ at STP
+    const durationSec = es.length * 3600;          // 1 hr × n timepoints
+    const avgI_A      = avgI * 6;                  // × 6 electrodes in series
+    const fe = (avgI_A > 0 && totalMolH2 > 0 && durationSec > 0)
+      ? Math.min((totalMolH2 * 2 * 96485) / (avgI_A * durationSec) * 100, 100)
+      : null;
+    return {
+      runid: r.runid, reactor: r.reactor,
+      totalH2: +totalH2.toFixed(3),
+      totalGas: +totalGas.toFixed(3),
+      avgI: +avgI.toFixed(2),
+      avgV: +avgV.toFixed(3),
+      fe: fe ? +fe.toFixed(1) : null,
+      tps: es.length
+    };
+  }).filter(r => r.tps > 0);
+}
+
+// ── CHARTS (Chart.js) ──
+const CHART_INSTANCES = {};
+const SAND0='#f5ede0',SAND1='#ede3d2',SAND2='#e2d6c2',SAND3='#d4c5ae';
+const INK='#1c1712',INK3='#5a4e40',INK4='#7a6e60';
+// Day palette — one colour per day
+const DAY_PALETTE=['#2d4a8a','#8a2d2d','#2d7a4a','#7a5a2d','#5a2d7a','#2d6a7a','#1c1712','#6a2d5a','#2d4a6a'];
+
+Chart.defaults.font.family="'IBM Plex Mono',monospace";
+Chart.defaults.color=INK3;
+
+function destroyChart(id){if(CHART_INSTANCES[id]){CHART_INSTANCES[id].destroy();delete CHART_INSTANCES[id];}}
+function hexToRgba(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;}
+function chartCol(r){return RC_COLORS[r]||'#2d4a8a';}
+
+const TOOLTIP_STYLE = {
+  backgroundColor:INK,titleColor:SAND0,bodyColor:SAND2,
+  borderColor:'#3a3028',borderWidth:1,padding:10,
+  titleFont:{family:"'Syne',sans-serif",size:11,weight:'700'},
+  bodyFont:{family:"'IBM Plex Mono',monospace",size:10}
+};
+const AXIS_STYLE = (title) => ({
+  title:{display:!!title,text:title,color:INK4,font:{size:9,family:"'IBM Plex Mono',monospace"}},
+  grid:{color:SAND2},ticks:{color:INK3,font:{size:9}}
+});
+
+function emptyChart(id,msg){
+  destroyChart(id);
+  const ctx=document.getElementById(id);
+  if(!ctx)return;
+  CHART_INSTANCES[id]=new Chart(ctx.getContext('2d'),{
+    type:'line',data:{datasets:[]},
+    options:{responsive:true,plugins:{
+      legend:{display:false},
+      title:{display:true,text:msg||'No data',color:INK4,font:{size:12}}
+    }}
+  });
+}
+
+// ── FILTER BUILDERS ──
+function buildRunFilter(){
+  const rA = document.getElementById('ts-reactor-a')?.value;
+  const rB = document.getElementById('ts-reactor-b')?.value;
+  const reactors = [rA,rB].filter(Boolean);
+  const vis = S.entries.filter(e=>!e.deleted&&(reactors.length===0||reactors.includes(e.reactor)));
+
+  const runs  = ['ALL',...new Set(vis.map(e=>e.runid).filter(Boolean))];
+  const dates = ['ALL',...new Set(vis.map(e=>e.date).filter(Boolean)).values()].sort();
+  const days  = ['ALL',...new Set(vis.map(e=>e.day).filter(d=>d&&d!==''))].sort((a,b)=>+a-+b);
+
+  const setOpts=(id,vals,prefix='')=>{
+    const el=document.getElementById(id); if(!el)return;
+    const prev=el.value;
+    el.innerHTML=vals.map((v,i)=>`<option value="${v}">${i===0?(prefix||v):v}</option>`).join('');
+    if(vals.includes(prev))el.value=prev;
+  };
+  setOpts('ts-run',  runs,  'All runs');
+  setOpts('ts-date', dates, 'All dates');
+  setOpts('ts-day',  days,  'All days');
+}
+
+function buildDayFilter(){
+  const r = document.getElementById('day-reactor')?.value;
+  if(!r) return;
+  // Day filter not needed — day comparison shows all days for selected reactor
+}
+
+// ── CHART 1: MULTI-SERIES TOGGLEABLE TIME SERIES ──
+function renderTimeSeries(){
+  const elA=document.getElementById('ts-reactor-a');
+  const elB=document.getElementById('ts-reactor-b');
+  if(!elA||!elB){emptyChart('ts-chart','Select a reactor to begin');return;}
+
+  const rA=elA.value, rB=elB.value;
+  const reactors=[rA,rB].filter(Boolean);
+  const runFilter  = document.getElementById('ts-run')?.value  || 'ALL';
+  const dateFilter = document.getElementById('ts-date')?.value || 'ALL';
+  const dayFilter  = document.getElementById('ts-day')?.value  || 'ALL';
+
+  // Parameter hue families — each parameter owns a hue
+  // Run index shifts the lightness within that hue
+  const PARAM_HUES = {
+    voltage:     { h:220, label:'Voltage (V)',       yID:'yLeft'  },
+    current:     { h:0,   label:'Current (A)',       yID:'yLeft'  },
+    h2vol:       { h:145, label:'H₂ vol (L)',        yID:'yRight' },
+    co2vol:      { h:35,  label:'CO₂ vol (L)',       yID:'yRight' },
+    totalgas:    { h:280, label:'Total gas (L)',      yID:'yRight' },
+    intervalgas: { h:185, label:'Interval gas (L)',  yID:'yRight' },
+  };
+
+  // Generate a colour for a parameter+run combo
+  // runIdx 0 = darkest, increasing = progressively lighter
+  function paramRunColor(key, runIdx, totalRuns) {
+    const hue = PARAM_HUES[key]?.h ?? 200;
+    // Lightness range: 28% (dark) → 62% (light), spaced evenly
+    const minL = 28, maxL = 62;
+    const l = totalRuns <= 1 ? 42 : minL + (runIdx / Math.max(totalRuns - 1, 1)) * (maxL - minL);
+    // Saturation: parameters on left axis slightly desaturated to not clash with right
+    const s = PARAM_HUES[key]?.yID === 'yLeft' ? 65 : 72;
+    return `hsl(${hue},${s}%,${Math.round(l)}%)`;
+  }
+
+  const activeKeys = Object.keys(PARAM_HUES).filter(k => {
+    const el = document.getElementById('tog-'+k); return el && el.checked;
+  });
+
+  let vis = S.entries.filter(e=>!e.deleted);
+  if(reactors.length) vis=vis.filter(e=>reactors.includes(e.reactor));
+  if(runFilter!=='ALL')  vis=vis.filter(e=>e.runid===runFilter);
+  if(dateFilter!=='ALL') vis=vis.filter(e=>e.date===dateFilter);
+  if(dayFilter!=='ALL')  vis=vis.filter(e=>String(e.day)===String(dayFilter));
+
+  if(!vis.length){emptyChart('ts-chart','No data for selected filters');return;}
+
+  // Group by run, get sorted timepoints
+  const byRun={};
+  vis.forEach(e=>{
+    const key=e.reactor+'||'+e.runid;
+    if(!byRun[key])byRun[key]={reactor:e.reactor,runid:e.runid,tps:[]};
+    byRun[key].tps.push(e);
+  });
+  // Sort each run by timepoint label
+  Object.values(byRun).forEach(r=>{
+    r.tps.sort((a,b)=>String(a.timepoint).localeCompare(String(b.timepoint),undefined,{numeric:true}));
+  });
+
+  const runs=Object.values(byRun);
+  // Build unified timepoint labels (union of all timepoints)
+  const allTPs=[...new Set(runs.flatMap(r=>r.tps.map(e=>e.timepoint)))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+
+  // Build datasets: colour by parameter hue × run shade
+  const datasets = [];
+  const totalRuns = runs.length;
+
+  activeKeys.forEach(key => {
+    const paramDef = PARAM_HUES[key];
+    runs.forEach((r, runIdx) => {
+      const tpMap = {};
+      r.tps.forEach(e => { tpMap[e.timepoint] = e; });
+      const col = paramRunColor(key, runIdx, totalRuns);
+      const runLabel = r.runid || RC_NAMES[r.reactor] || r.reactor;
+      // Dash pattern varies by run so lines are distinguishable even if printed B&W
+      const dashPatterns = [[], [6,2], [2,3], [8,2,2,2], [4,4], [1,3]];
+      const dash = dashPatterns[runIdx % dashPatterns.length];
+
+      datasets.push({
+        label: `${paramDef.label} · ${runLabel}`,
+        data: allTPs.map(tp => { const e = tpMap[tp]; return e ? (parseFloat(e[key]) || null) : null; }),
+        borderColor: col,
+        backgroundColor: col.replace('hsl(', 'hsla(').replace(')', ',0.06)'),
+        borderWidth: 2.5,
+        borderDash: dash,
+        pointBackgroundColor: col,
+        pointBorderColor: SAND0,
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        tension: 0.3,
+        fill: false,
+        spanGaps: false,
+        yAxisID: paramDef.yID
+      });
+    });
+  });
+
+  const hasRight = activeKeys.some(k => PARAM_HUES[k]?.yID === 'yRight');
+  const hasLeft  = activeKeys.some(k => PARAM_HUES[k]?.yID === 'yLeft');
+
+  destroyChart('ts-chart');
+  const ctx=document.getElementById('ts-chart');
+  if(!ctx)return;
+  CHART_INSTANCES['ts-chart']=new Chart(ctx.getContext('2d'),{
+    type:'line',
+    data:{labels:allTPs, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',labels:{font:{size:9},color:INK3,boxWidth:16,padding:10}},
+        tooltip:TOOLTIP_STYLE
+      },
+      scales:{
+        x:{...AXIS_STYLE('Timepoint'),type:'category'},
+        yLeft:{
+          ...AXIS_STYLE('Voltage (V)  ·  Current (A)'),
+          position:'left',display:hasLeft
+        },
+        yRight:{
+          ...AXIS_STYLE('Volume (L)'),
+          position:'right',display:hasRight,
+          grid:{drawOnChartArea:false}
+        }
+      }
+    }
+  });
+}
+
+// ── CHART 2: DAY COMPARISON — with run picker & colour chips ──
+
+// 12 visually distinct colours for runs
+const RUN_PALETTE = [
+  '#2d4a8a','#c0392b','#2d7a4a','#d4820a',
+  '#7a2d8a','#1a7a7a','#8a4a2d','#3d7a2d',
+  '#5a2d6a','#2d5a8a','#8a6a2d','#2d8a6a'
+];
+
+// State: selected runs for day comparison
+const DAY_STATE = {
+  selectedRuns: [],   // array of { runid, color, reactor }
+  colorIndex: 0
+};
+
+function buildDayRunList() {
+  const reactor = document.getElementById('day-reactor')?.value;
+  const picker  = document.getElementById('day-run-picker');
+  if (!picker) return;
+
+  const prev = picker.value;
+  picker.innerHTML = '<option value="">— pick a run to add</option>';
+
+  if (!reactor) return;
+
+  const runs = [...new Set(
+    S.entries.filter(e => !e.deleted && e.reactor === reactor)
+             .map(e => e.runid)
+             .filter(Boolean)
+  )].sort();
+
+  runs.forEach(r => {
+    const already = DAY_STATE.selectedRuns.some(s => s.runid === r);
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = already ? `${r} ✓` : r;
+    opt.disabled = already;
+    picker.appendChild(opt);
+  });
+
+  if (runs.includes(prev)) picker.value = prev;
+}
+
+function addDayRun(runid) {
+  if (!runid) return;
+  if (DAY_STATE.selectedRuns.some(s => s.runid === runid)) return;
+
+  const reactor = document.getElementById('day-reactor')?.value || '';
+  const color   = RUN_PALETTE[DAY_STATE.colorIndex % RUN_PALETTE.length];
+  DAY_STATE.colorIndex++;
+
+  DAY_STATE.selectedRuns.push({ runid, color, reactor });
+  renderChips();
+  buildDayRunList(); // refresh picker to mark as added
+  renderDayComparison();
+}
+
+function removeDayRun(runid) {
+  DAY_STATE.selectedRuns = DAY_STATE.selectedRuns.filter(s => s.runid !== runid);
+  renderChips();
+  buildDayRunList();
+  renderDayComparison();
+}
+
+function clearDayRuns() {
+  DAY_STATE.selectedRuns = [];
+  DAY_STATE.colorIndex = 0;
+  renderChips();
+  buildDayRunList();
+  renderDayComparison();
+}
+
+function renderChips() {
+  const container = document.getElementById('day-run-chips');
+  const counter   = document.getElementById('day-run-count');
+  if (!container) return;
+
+  if (!DAY_STATE.selectedRuns.length) {
+    container.innerHTML = '<span style="font-family:var(--mono);font-size:10px;color:var(--ink-5);">No runs selected — pick from the dropdown above</span>';
+    if (counter) counter.textContent = '(0)';
+    return;
+  }
+
+  if (counter) counter.textContent = `(${DAY_STATE.selectedRuns.length})`;
+
+  container.innerHTML = DAY_STATE.selectedRuns.map(s => {
+    const textCol = isColorDark(s.color) ? '#f5ede0' : '#1c1712';
+    return `<span class="run-chip" style="background:${s.color};border-color:${s.color};color:${textCol};"
+      onclick="removeDayRun('${s.runid}')">
+      ${s.runid}
+      <span class="chip-x">✕</span>
+    </span>`;
+  }).join('');
+}
+
+function isColorDark(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return (r*299 + g*587 + b*114) / 1000 < 128;
+}
+
+function buildDayFilter() {
+  // Called on switchPage — auto-select reactor if only one has data
+  const reactor = document.getElementById('day-reactor')?.value;
+  if (!reactor) {
+    const reactorsWithData = [...new Set(S.entries.filter(e=>!e.deleted).map(e=>e.reactor))];
+    if (reactorsWithData.length === 1) {
+      const el = document.getElementById('day-reactor');
+      if (el) el.value = reactorsWithData[0];
+    }
+  }
+  buildDayRunList();
+}
+
+function renderDayComparison() {
+  const metric = document.getElementById('day-metric')?.value || 'h2vol';
+  const metricLabels = {
+    h2vol:'H₂ vol (L)', voltage:'Voltage (V)', current:'Current (A)',
+    co2vol:'CO₂ vol (L)', totalgas:'Total gas (L)', intervalgas:'Interval gas (L)'
+  };
+
+  if (!DAY_STATE.selectedRuns.length) {
+    emptyChart('day-chart', 'Select runs above to compare days');
+    return;
+  }
+
+  // Build one dataset per selected run
+  const datasets = DAY_STATE.selectedRuns.map(sel => {
+    const entries = S.entries.filter(e =>
+      !e.deleted && e.runid === sel.runid && e.reactor === sel.reactor
+    ).sort((a,b) => String(a.timepoint).localeCompare(String(b.timepoint), undefined, {numeric:true}));
+
+    const tpMap = {};
+    entries.forEach(e => { tpMap[e.timepoint] = e; });
+
+    return { sel, entries, tpMap };
+  });
+
+  // Union of all timepoints across selected runs — sorted
+  const allTPs = [...new Set(datasets.flatMap(d => d.entries.map(e => e.timepoint)))]
+    .sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric:true}));
+
+  const chartDatasets = datasets.map(({ sel, tpMap }) => ({
+    label: sel.runid,
+    data: allTPs.map(tp => {
+      const e = tpMap[tp];
+      return e ? (parseFloat(e[metric]) || null) : null;
+    }),
+    borderColor: sel.color,
+    backgroundColor: hexToRgba(sel.color, 0.08),
+    borderWidth: 2.5,
+    pointBackgroundColor: sel.color,
+    pointBorderColor: SAND0,
+    pointBorderWidth: 2,
+    pointRadius: 5,
+    pointHoverRadius: 7,
+    tension: 0.3,
+    fill: false,
+    spanGaps: false
+  }));
+
+  destroyChart('day-chart');
+  const ctx = document.getElementById('day-chart');
+  if (!ctx) return;
+
+  CHART_INSTANCES['day-chart'] = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: { labels: allTPs, datasets: chartDatasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font: { size: 10 }, color: INK3, boxWidth: 20, padding: 12,
+            generateLabels: chart => chart.data.datasets.map((ds, i) => ({
+              text: ds.label,
+              fillStyle: ds.borderColor,
+              strokeStyle: ds.borderColor,
+              lineWidth: 2,
+              hidden: !chart.isDatasetVisible(i),
+              datasetIndex: i
+            }))
+          }
+        },
+        tooltip: {
+          ...TOOLTIP_STYLE,
+          callbacks: {
+            title: ctx => `Timepoint: ${ctx[0]?.label || ''}`,
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(3) ?? '—'}`
+          }
+        }
+      },
+      scales: {
+        x: { ...AXIS_STYLE('Timepoint'), type: 'category' },
+        y: { ...AXIS_STYLE(metricLabels[metric]) }
+      }
+    }
+  });
+}
+
+// ── CHART 3: BAR — RUN SUMMARY ──
+function renderBarChart(){
+  const elA=document.getElementById('bar-reactor-a');
+  const elB=document.getElementById('bar-reactor-b');
+  if(!elA||!elB){emptyChart('bar-chart','Select a reactor');return;}
+  const rA=elA.value,rB=elB.value;
+  const reactors=[rA,rB].filter(Boolean);
+  const summaries=getRunSummaries(reactors.length?reactors:null);
+
+  if(!summaries.length){emptyChart('bar-chart','No run summaries yet');const bl=document.getElementById('bar-legend');if(bl)bl.innerHTML='';return;}
+
+  const labels=summaries.map(s=>s.runid);
+  const reactorSet=[...new Set(summaries.map(s=>s.reactor))];
+
+  const barDatasets=reactorSet.map(r=>{
+    const col=chartCol(r);
+    return {
+      label:RC_NAMES[r]||r,type:'bar',
+      data:summaries.map(s=>s.reactor===r?s.totalH2:null),
+      backgroundColor:hexToRgba(col,0.65),borderColor:col,
+      borderWidth:1.5,borderRadius:3,yAxisID:'yH2'
+    };
+  });
+
+  const feDataset={
+    label:'FE %',type:'line',
+    data:summaries.map(s=>s.fe),
+    borderColor:'#2d7a4a',backgroundColor:'transparent',
+    borderWidth:2,borderDash:[5,3],
+    pointBackgroundColor:SAND0,pointBorderColor:'#2d7a4a',
+    pointBorderWidth:2,pointRadius:5,tension:0.3,yAxisID:'yFE'
+  };
+
+  destroyChart('bar-chart');
+  const ctx=document.getElementById('bar-chart');
+  if(!ctx)return;
+  CHART_INSTANCES['bar-chart']=new Chart(ctx.getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets:[...barDatasets,feDataset]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,position:'top',labels:{font:{size:10},color:INK3,boxWidth:20,padding:12}},tooltip:TOOLTIP_STYLE},
+      scales:{
+        x:{ticks:{color:INK3,font:{size:9},maxRotation:30},grid:{color:SAND2}},
+        yH2:{type:'linear',position:'left',...AXIS_STYLE('Total H₂ (L)')},
+        yFE:{type:'linear',position:'right',title:{display:true,text:'FE %',color:INK4,font:{size:9}},
+          grid:{drawOnChartArea:false},ticks:{color:INK3,font:{size:9}},min:0,max:100}
+      }
+    }
+  });
+  const bl=document.getElementById('bar-legend');if(bl)bl.innerHTML='';
+}
+
+// ── CHART 4: SCATTER — FE interval vs FE cumulative per timepoint ──
+
+function buildScatterTP() {
+  // Populate timepoint dropdown from all entries
+  const tps = [...new Set(S.entries.filter(e=>!e.deleted).map(e=>e.timepoint).filter(Boolean))]
+    .sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric:true}));
+  const sel = document.getElementById('sc-tp');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— select timepoint</option>' +
+    tps.map(t => `<option value="${t}">${t}</option>`).join('');
+  if (tps.includes(prev)) sel.value = prev;
+}
+
+function computeFEInterval(entry) {
+  // FE for this 1-hour interval
+  // h2vol = H2 produced this interval (L)
+  // current = average current this interval (A)
+  const h2L  = parseFloat(entry.h2vol) || 0;
+  const I_A  = parseFloat(entry.current) || 0;
+  if (h2L <= 0 || I_A <= 0) return null;
+  const molH2      = h2L / 22.4;
+  const chargePassed = I_A * 3600; // 1 hour in seconds
+  const fe = (molH2 * 2 * 96485) / chargePassed * 100;
+  return Math.min(+fe.toFixed(2), 100);
+}
+
+function computeFECumulative(entries, upToTP) {
+  // FE cumulative = total H2 so far / total charge so far
+  // entries sorted by timepoint, up to and including upToTP
+  const sorted = entries
+    .filter(e => String(e.timepoint).localeCompare(String(upToTP), undefined, {numeric:true}) <= 0)
+    .sort((a,b) => String(a.timepoint).localeCompare(String(b.timepoint), undefined, {numeric:true}));
+
+  if (!sorted.length) return null;
+  const totalH2L = sorted.reduce((s,e) => s + (parseFloat(e.h2vol)||0), 0);
+  const avgI_A   = (sorted.reduce((s,e) => s + (parseFloat(e.current)||0), 0) / sorted.length) * 6; // × 6 electrodes
+  const durationS = sorted.length * 3600;
+  if (totalH2L <= 0 || avgI_A <= 0) return null;
+  const molH2 = totalH2L / 22.4;
+  const fe = (molH2 * 2 * 96485) / (avgI_A * durationS) * 100;
+  return Math.min(+fe.toFixed(2), 100);
+}
+
+function renderScatter() {
+  const tp       = document.getElementById('sc-tp')?.value;
+  const reactorF = document.getElementById('sc-reactor')?.value || 'ALL';
+
+  if (!tp) {
+    emptyChart('sc-chart', 'Select a timepoint to plot FE');
+    const sl = document.getElementById('sc-legend'); if(sl) sl.innerHTML='';
+    return;
+  }
+
+  // Group entries by run
+  const vis = S.entries.filter(e => !e.deleted && (reactorF==='ALL' || e.reactor===reactorF));
+  const byRun = {};
+  vis.forEach(e => {
+    const key = e.reactor + '||' + e.runid;
+    if (!byRun[key]) byRun[key] = { reactor:e.reactor, runid:e.runid, entries:[] };
+    byRun[key].entries.push(e);
+  });
+
+  // For each run, find the entry at the selected timepoint
+  const points = [];
+  Object.values(byRun).forEach(r => {
+    const entry = r.entries.find(e => e.timepoint === tp);
+    if (!entry) return; // this run doesn't have this timepoint
+
+    const feInt = computeFEInterval(entry);
+    const feCum = computeFECumulative(r.entries, tp);
+
+    if (feInt === null && feCum === null) return;
+
+    points.push({
+      reactor:  r.reactor,
+      runid:    r.runid,
+      timepoint: tp,
+      feInterval:   feInt,
+      feCumulative: feCum,
+      voltage:  parseFloat(entry.voltage)||0,
+      current:  parseFloat(entry.current)||0,
+      h2vol:    parseFloat(entry.h2vol)||0,
+    });
+  });
+
+  console.log('[Scatter FE]', points);
+
+  if (!points.length) {
+    emptyChart('sc-chart', `No runs have timepoint "${tp}"`);
+    const sl = document.getElementById('sc-legend'); if(sl) sl.innerHTML='';
+    return;
+  }
+
+  // Two datasets: FE interval and FE cumulative
+  // X axis: run index (categorical) — label each point with run ID
+  // Use custom scatter: x = FE interval, y = FE cumulative
+  // Each point coloured by reactor
+
+  const reactorSet = [...new Set(points.map(p=>p.reactor))];
+  const datasets = reactorSet.map(r => {
+    const col = chartCol(r);
+    const pts = points.filter(p=>p.reactor===r).map(p=>({
+      x: p.feInterval ?? 0,
+      y: p.feCumulative ?? 0,
+      label: p.runid,
+      feInt: p.feInterval,
+      feCum: p.feCumulative,
+      voltage: p.voltage,
+      current: p.current,
+      h2vol: p.h2vol
+    }));
+    return {
+      label: RC_NAMES[r] || r,
+      data: pts,
+      backgroundColor: hexToRgba(col, 0.75),
+      borderColor: col,
+      borderWidth: 2,
+      pointRadius: 10,
+      pointHoverRadius: 13
+    };
+  });
+
+  destroyChart('sc-chart');
+  const ctx = document.getElementById('sc-chart');
+  if (!ctx) return;
+
+  CHART_INSTANCES['sc-chart'] = new Chart(ctx.getContext('2d'), {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font:{size:10}, color:INK3, usePointStyle:true, boxWidth:12, padding:12 }
+        },
+        tooltip: {
+          ...TOOLTIP_STYLE,
+          callbacks: {
+            title: ctx => ctx[0]?.raw?.label || '',
+            label: ctx => {
+              const d = ctx.raw;
+              return [
+                ` FE interval:    ${d.feInt !== null ? d.feInt.toFixed(2)+'%' : '—'}`,
+                ` FE cumulative:  ${d.feCum !== null ? d.feCum.toFixed(2)+'%' : '—'}`,
+                ` H₂ vol:  ${d.h2vol.toFixed(3)} L`,
+                ` Current: ${d.current.toFixed(2)} A`,
+                ` Voltage: ${d.voltage.toFixed(3)} V`,
+              ];
+            }
+          }
+        },
+        annotation: {}
+      },
+      scales: {
+        x: {
+          ...AXIS_STYLE(`FE interval at ${tp} (%)`),
+          min: 0,
+        },
+        y: {
+          ...AXIS_STYLE(`FE cumulative at ${tp} (%)`),
+          min: 0,
+        }
+      }
+    }
+  });
+
+  // Build legend showing run count
+  const sl = document.getElementById('sc-legend');
+  if (sl) {
+    sl.innerHTML = `<span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);">${points.length} run${points.length!==1?'s':''} at timepoint <strong>${tp}</strong></span>`;
+  }
+}
+
+// ── KPI UPDATE ──
+function updateKPIs() {
+  const vis = S.entries.filter(e=>!e.deleted);
+  const totalH2 = vis.reduce((s,e)=>s+(parseFloat(e.h2vol)||0),0);
+  const sums = getRunSummaries(null);
+  const validFEs = sums.map(r=>r.fe).filter(f=>f!==null&&f>0);
+  const bestFE = validFEs.length ? Math.max(...validFEs) : null;
+  const avgI = vis.length ? vis.reduce((s,e)=>s+(parseFloat(e.current)||0),0)/vis.length : 0;
+  document.getElementById('kpi-h2').textContent = totalH2.toFixed(3);
+  document.getElementById('kpi-fe').textContent = bestFE ? bestFE.toFixed(1) : '—';
+  document.getElementById('kpi-cd').textContent = avgI ? avgI.toFixed(2) : '—';
+  document.getElementById('kpi-tp').textContent = vis.length;
+
+  // Debug: log FE per run to console so we can verify
+  console.log('[FE debug]', sums.map(r=>({run:r.runid, totalH2:r.totalH2, avgI:r.avgI, tps:r.tps, fe:r.fe})));
+}
+
+// ── PAGE SWITCH ──
+function switchPage(p) {
+  ['log','analytics','import'].forEach(id=>{
+    document.getElementById('page-'+id).classList.toggle('active',id===p);
+    document.getElementById('ptab-'+id).classList.toggle('active',id===p);
+  });
+  if (p==='analytics') {
+    updateKPIs();
+
+    // ── Rebuild dropdowns from actual data in S.entries ──
+    const vis = S.entries.filter(e => !e.deleted);
+    const reactorsWithData = [...new Set(vis.map(e => e.reactor))];
+
+    // Rebuild all 4 compare dropdowns with only reactors that have data
+    const buildDropdown = (id, includeNone) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const prev = el.value; // remember current selection
+      el.innerHTML = includeNone
+        ? '<option value="">— none (single view)</option>'
+        : '<option value="">— select reactor</option>';
+      reactorsWithData.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = RC_NAMES[r] || r;
+        el.appendChild(opt);
+      });
+      // Restore previous or auto-select first
+      if (reactorsWithData.includes(prev)) {
+        el.value = prev;
+      } else if (!includeNone && reactorsWithData.length > 0) {
+        el.value = reactorsWithData[0];
+      }
+    };
+
+    buildDropdown('ts-reactor-a', false);
+    buildDropdown('ts-reactor-b', true);
+    buildDropdown('bar-reactor-a', false);
+    buildDropdown('bar-reactor-b', true);
+    buildDropdown('day-reactor', false);
+
+    // ── Debug panel ──
+    const dbg = document.getElementById('debug-panel');
+    if (vis.length > 0) {
+      dbg.style.display = 'block';
+      const reactorCounts = {};
+      vis.forEach(e => {
+        const name = RC_NAMES[e.reactor] || e.reactor;
+        reactorCounts[name] = (reactorCounts[name] || 0) + 1;
+      });
+      const runs = [...new Set(vis.map(e => e.runid))];
+      const sample = vis[0];
+      document.getElementById('debug-content').innerHTML =
+        `Entries: <strong style="color:#f5ede0">${vis.length}</strong> &nbsp;|&nbsp; ` +
+        `Reactors: <strong style="color:#f5ede0">${Object.entries(reactorCounts).map(([k,v]) => k+':'+v).join(', ')}</strong><br>` +
+        `Runs: <strong style="color:#f5ede0">${runs.slice(0,4).join(', ')}${runs.length > 4 ? '…' : ''}</strong><br>` +
+        `Sample — reactor key: <strong style="color:#f5ede0">${sample.reactor}</strong> ` +
+        `name: <strong style="color:#f5ede0">${RC_NAMES[sample.reactor]}</strong> ` +
+        `voltage: <strong style="color:#f5ede0">${sample.voltage}</strong> ` +
+        `current: <strong style="color:#f5ede0">${sample.current}</strong> ` +
+        `h2vol: <strong style="color:#f5ede0">${sample.h2vol}</strong><br>` +
+        (IMP.rawRows.length ? `Sheet columns: <strong style="color:#f0a500">${Object.keys(IMP.rawRows[0]).join(' · ')}</strong>` : '');
+    } else {
+      dbg.style.display = 'none';
+    }
+
+    // Render charts after short delay for DOM paint
+    setTimeout(() => {
+      buildRunFilter();
+      renderTimeSeries();
+      buildDayFilter();
+      renderDayComparison();
+      renderChips();
+      renderBarChart();
+      buildScatterTP();
+      // Also populate sc-reactor dropdown
+      const scReactorEl = document.getElementById('sc-reactor');
+      if (scReactorEl) {
+        const prev = scReactorEl.value;
+        const rwd = [...new Set(S.entries.filter(e=>!e.deleted).map(e=>e.reactor))];
+        scReactorEl.innerHTML = '<option value="ALL">All reactors</option>' +
+          rwd.map(r=>`<option value="${r}">${RC_NAMES[r]||r}</option>`).join('');
+        if (rwd.includes(prev)) scReactorEl.value = prev;
+      }
+      renderScatter();
+    }, 150);
+  }
+}
+
+// ── LOG FORM ──
+setInterval(()=>{ document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8); },1000);
+document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8);
+document.getElementById('f-date').value=new Date().toISOString().slice(0,10);
+
+function buildSidebar() {
+  const container = document.getElementById('rc-list-container');
+  container.innerHTML = REACTORS.map((r,i) => {
+    const st = S.status[r] || 'idle';
+    return `
+    <div class="rc ${i===0?'active':''}" id="rc-${r}" onclick="selectReactor('${r}')">
+      <div class="rc-top">
+        <div>
+          <div class="rc-id">${RC_NAMES[r]}</div>
+          <div class="rc-name">${RC_NAMES[r]}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
+          <div class="rc-badge ${st}" id="rcb-${r}"><span class="bdot"></span>${st==='live'?'Live':'Idle'}</div>
+          <button class="rc-status-btn" id="rcstbtn-${r}"
+            onclick="event.stopPropagation();toggleReactorStatus('${r}')"
+            style="font-family:var(--mono);font-size:8px;letter-spacing:0.08em;text-transform:uppercase;
+              background:${st==='live'?'transparent':'var(--ink)'};
+              color:${st==='live'?'var(--ink-3)':'var(--sand-0)'};
+              border:1px solid ${st==='live'?'var(--sand-3)':'var(--ink)'};
+              border-radius:4px;padding:3px 8px;cursor:pointer;white-space:nowrap;">
+            ${st==='live'?'Set idle':'Set live'}
+          </button>
+        </div>
+      </div>
+      <div class="rc-meta" id="rcm-${r}">Day <strong id="rcd-${r}">—</strong>&nbsp;·&nbsp;<strong id="rcr-${r}">No run</strong><br><span id="rct-${r}">No timepoints logged</span></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleReactorStatus(r) {
+  const current = S.status[r] || 'idle';
+  const next    = current === 'live' ? 'idle' : 'live';
+  S.status[r]   = next;
+  refreshReactorCard(r);
+  // Show a toast confirming status change
+  updateLiveStrip();
+  showStatusToast(RC_NAMES[r], next);
+}
+
+function setAllReactorStatus(status) {
+  REACTORS.forEach(r => { S.status[r] = status; });
+  buildSidebar();
+  // Re-apply active class
+  REACTORS.forEach(r => {
+    document.getElementById('rc-'+r).classList.toggle('active', r===S.reactor);
+  });
+  updateLiveStrip();
+}
+
+function refreshReactorCard(r) {
+  const st  = S.status[r] || 'idle';
+  const badge = document.getElementById('rcb-'+r);
+  const btn   = document.getElementById('rcstbtn-'+r);
+  if (badge) {
+    badge.className = `rc-badge ${st}`;
+    badge.innerHTML = `<span class="bdot"></span>${st==='live'?'Live':'Idle'}`;
+  }
+  if (btn) {
+    btn.textContent = st==='live' ? 'Set idle' : 'Set live';
+    btn.style.background = st==='live' ? 'transparent' : 'var(--ink)';
+    btn.style.color      = st==='live' ? 'var(--ink-3)' : 'var(--sand-0)';
+    btn.style.border     = `1px solid ${st==='live'?'var(--sand-3)':'var(--ink)'}`;
+  }
+}
+
+function updateLiveStrip() {
+  const chips = document.getElementById('live-strip-chips');
+  if (!chips) return;
+  const live = REACTORS.filter(r => S.status[r]==='live');
+  if (!live.length) {
+    chips.innerHTML = '<span style="font-family:var(--mono);font-size:10px;color:var(--ink-5);">None — use Set live buttons in sidebar</span>';
+  } else {
+    chips.innerHTML = live.map(r => `
+      <span style="display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
+        background:var(--ink);color:var(--sand-0);padding:4px 10px;border-radius:12px;letter-spacing:0.04em;">
+        <span style="width:5px;height:5px;border-radius:50%;background:var(--sand-3);animation:blink 1.6s ease-in-out infinite;flex-shrink:0;"></span>
+        ${RC_NAMES[r]}
+      </span>`).join('');
+  }
+}
+
+function showStatusToast(name, status) {
+  const t = document.getElementById('toast');
+  const ti = document.getElementById('toast-title');
+  const ts = document.getElementById('toast-sub');
+  const bar = document.getElementById('toast-bar');
+  ti.textContent = `${name} → ${status==='live'?'Live':'Idle'}`;
+  ts.textContent = status==='live'
+    ? 'Reactor marked as running — timepoints will be logged'
+    : 'Reactor marked as idle — no active run';
+  t.classList.add('show');
+  bar.style.transition='none'; bar.style.transform='scaleX(1)';
+  requestAnimationFrame(()=>{
+    bar.style.transition='transform 4s linear';
+    bar.style.transform='scaleX(0)';
+  });
+  clearTimeout(window._statusToastTimer);
+  window._statusToastTimer = setTimeout(()=>t.classList.remove('show'), 4000);
+}
+
+function buildCompareDropdowns() {
+  const opts = REACTORS.map(r => `<option value="${r}">${RC_NAMES[r]}</option>`).join('');
+  const emptyA = '<option value="">— select reactor</option>';
+  const emptyB = '<option value="">— none (single view)</option>';
+  ['ts-reactor-a','bar-reactor-a'].forEach(id => {
+    document.getElementById(id).innerHTML = emptyA + opts;
+  });
+  ['ts-reactor-b','bar-reactor-b'].forEach(id => {
+    document.getElementById(id).innerHTML = emptyB + opts;
+  });
+}
+
+function selectReactor(id){
+  S.reactor=id;
+  REACTORS.forEach(r=>document.getElementById('rc-'+r).classList.toggle('active',r===id));
+  document.getElementById('f-reactor').value=RC_NAMES[id];
+  document.getElementById('f-runid').value=S.runIds[id]||'';
+  document.getElementById('f-day').value=S.days[id]||'';
+  document.getElementById('f-mode').value=S.modes[id]||'';
+  document.getElementById('f-feedstock').value=S.feedstocks[id]||'';
+  onRunId(); computeGas(); updateCount();
+}
+function onRunId(){
+  const v=document.getElementById('f-runid').value.trim();
+  S.runIds[S.reactor]=v;
+  const el=document.getElementById('run-id-display');
+  if(v){el.textContent=v;el.classList.remove('empty');}
+  else{el.textContent='Set a run ID →';el.classList.add('empty');}
+  document.getElementById('rcr-'+S.reactor).textContent=v||'No run';
+}
+function onDay(){
+  const v=document.getElementById('f-day').value;
+  S.days[S.reactor]=v;
+  document.getElementById('rcd-'+S.reactor).textContent=v||'—';
+}
+function onMode(){
+  const v=document.getElementById('f-mode').value;
+  S.modes[S.reactor]=v;
+  document.getElementById('mode-other-row').style.display=v==='OTHER'?'block':'none';
+}
+function onFeedstock(){
+  S.feedstocks[S.reactor]=document.getElementById('f-feedstock').value;
+}
+function onTrigger(){
+  const v=document.getElementById('f-trigger').value;
+  document.getElementById('f-trigger-custom').style.display=v==='OTHER'?'block':'none';
+}
+function toggleSec(id){
+  const b=document.getElementById('body-'+id);
+  const a=document.getElementById('arr-'+id);
+  b.classList.toggle('hidden');
+  a.classList.toggle('open',!b.classList.contains('hidden'));
+}
+function computeGas(){
+  const tg=parseFloat(document.getElementById('f-totalgas').value);
+  const h2=parseFloat(document.getElementById('f-h2pct').value);
+  const co=parseFloat(document.getElementById('f-co2pct').value);
+  const prev=S.lastGas[S.reactor];
+  let ig=null;
+  if(!isNaN(tg)) ig=prev!==null?Math.max(0,tg-prev):tg;
+  const set=(id,val)=>{ const el=document.getElementById(id); if(val!==null&&!isNaN(val)){el.textContent=val.toFixed(2);el.classList.remove('empty');}else{el.textContent='—';el.classList.add('empty');} };
+  set('gv-ig',ig);
+  set('gv-h2',(ig!==null&&!isNaN(h2))?ig*h2/100:null);
+  set('gv-co2',(ig!==null&&!isNaN(co))?ig*co/100:null);
+}
+function updateCount(){
+  const c=S.tpCount[S.reactor];
+  document.getElementById('tp-count').textContent=c;
+  document.getElementById('rct-'+S.reactor).textContent=c===0?'No timepoints logged':c+' timepoint'+(c>1?'s':'');
+  document.getElementById('ptab-log-count').textContent=S.entries.filter(e=>!e.deleted).length;
+}
+function validate(){
+  const req=['f-tp','f-voltage','f-current','f-totalgas'];
+  let ok=true;
+  req.forEach(id=>{ const el=document.getElementById(id); const empty=!el.value.trim(); el.classList.toggle('invalid',empty); if(empty) ok=false; });
+  return ok;
+}
+function submitEntry(){
+  if(!validate()){ const h=document.getElementById('action-hint'); h.textContent='Timepoint, voltage, current and total gas are required.'; h.classList.add('warn'); return; }
+  const h=document.getElementById('action-hint'); h.textContent='Timepoint, voltage, current and total gas required.'; h.classList.remove('warn');
+  const tg=parseFloat(document.getElementById('f-totalgas').value)||0;
+  const h2p=parseFloat(document.getElementById('f-h2pct').value)||0;
+  const co=parseFloat(document.getElementById('f-co2pct').value)||0;
+  const prev=S.lastGas[S.reactor];
+  const ig=prev!==null?Math.max(0,tg-prev):tg;
+  const tsel=document.getElementById('f-trigger').value;
+  const trig=tsel==='OTHER'?document.getElementById('f-trigger-custom').value:tsel;
+  const msel=document.getElementById('f-mode').value;
+  const mode=msel==='OTHER'?document.getElementById('f-mode-other').value:msel;
+  const e={
+    id:Date.now(),reactor:S.reactor,
+    runid:document.getElementById('f-runid').value.trim(),
+    date:document.getElementById('f-date').value,
+    day:document.getElementById('f-day').value,
+    timepoint:document.getElementById('f-tp').value.trim(),
+    mode,trigger:trig,
+    voltage:document.getElementById('f-voltage').value,
+    current:document.getElementById('f-current').value,
+    totalgas:tg,intervalgas:ig.toFixed(2),
+    h2pct:h2p,co2pct:co,
+    h2vol:(ig*h2p/100).toFixed(3),co2vol:(ig*co/100).toFixed(3),
+    ph_ferm_t0:document.getElementById('f-ph-ferm-t0').value,
+    cond_ferm_t0:document.getElementById('f-cond-ferm-t0').value,
+    ph_ferm_tend:document.getElementById('f-ph-ferm-tend').value,
+    cond_ferm_tend:document.getElementById('f-cond-ferm-tend').value,
+    ph_reac_t0:document.getElementById('f-ph-reac-t0').value,
+    cond_reac_t0:document.getElementById('f-cond-reac-t0').value,
+    ph_reac_tend:document.getElementById('f-ph-reac-tend').value,
+    cond_reac_tend:document.getElementById('f-cond-reac-tend').value,
+    notes:document.getElementById('f-notes').value,deleted:false
+  };
+  S.entries.unshift(e); S.last=e;
+  // Write to Google Sheets if connected (async, non-blocking)
+  if (GSHEETS.connected) writeEntryToSheet(e).catch(console.error);
+  S.lastGas[S.reactor]=tg; S.tpCount[S.reactor]++;
+  S.days[S.reactor]=e.day;
+  document.getElementById('rcd-'+S.reactor).textContent=e.day||'—';
+  const b=document.getElementById('rcb-'+S.reactor);
+  b.className='rc-badge live'; b.innerHTML='<span class="bdot"></span>Live';
+  updateCount(); renderLog(); showToast(e); clearTP();
+  document.getElementById('f-tp').focus();
+}
+function clearTP(){
+  ['f-tp','f-voltage','f-current','f-totalgas','f-h2pct','f-co2pct','f-notes','f-trigger','f-trigger-custom',
+   'f-ph-ferm-t0','f-cond-ferm-t0','f-ph-ferm-tend','f-cond-ferm-tend',
+   'f-ph-reac-t0','f-cond-reac-t0','f-ph-reac-tend','f-cond-reac-tend'
+  ].forEach(id=>{ const el=document.getElementById(id); if(el){el.value='';el.classList.remove('invalid');} });
+  document.getElementById('f-trigger-custom').style.display='none';
+  ['gv-ig','gv-h2','gv-co2'].forEach(id=>{ const el=document.getElementById(id); el.textContent='—'; el.classList.add('empty'); });
+}
+function renderLog(){
+  const list=document.getElementById('log-list');
+  const vis=S.entries.filter(e=>!e.deleted);
+  if(!vis.length){ list.innerHTML='<div class="log-empty"><b>Nothing logged yet</b>Select a reactor<br>and begin your run</div>'; return; }
+  list.innerHTML=vis.slice(0,16).map((e,i)=>`
+    <div class="log-item ${i===0?'fresh':''}" id="li-${e.id}">
+      <div class="li-row"><span class="li-reactor">${e.reactor}</span><span class="li-tp">${e.timepoint}</span><span class="li-time">${new Date(e.id).toTimeString().slice(0,5)}</span></div>
+      <div class="li-vals">${e.voltage}V · ${e.current}A · H₂ ${e.h2vol} L${e.feedstock ? ' · <span style="color:var(--ink-3)">' + (({'CSL_raw':'CSL raw','CSL_pH':'CSL pH adj','FCSL':'Ferm. CSL','FCSL_pH':'Ferm. CSL pH adj'})[e.feedstock]||e.feedstock) + '</span>' : ''}</div>
+      <button class="li-undo" onclick="undoEntry(${e.id})">↩ undo</button>
+    </div>`).join('');
+}
+let toastTimer;
+function showToast(e){
+  document.getElementById('toast-title').textContent=`${e.reactor} · ${e.timepoint} logged`;
+  document.getElementById('toast-sub').textContent=`${e.voltage}V · ${e.current}mA · H₂ ${e.h2vol} L · CO₂ ${e.co2vol} L`;
+  const t=document.getElementById('toast'); const b=document.getElementById('toast-bar');
+  t.classList.add('show'); b.style.transition='none'; b.style.transform='scaleX(1)';
+  requestAnimationFrame(()=>{ b.style.transition='transform 30s linear'; b.style.transform='scaleX(0)'; });
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),30000);
+}
+function undoLast(){ if(S.last) undoEntry(S.last.id); document.getElementById('toast').classList.remove('show'); }
+function undoEntry(id){
+  const e=S.entries.find(x=>x.id===id); if(!e||e.deleted) return;
+  e.deleted=true;
+  // Delete from sheet if it was synced
+  if (GSHEETS.connected && GSHEETS.synced.has(e.id)) deleteSheetRow(e).catch(console.error);
+  const rem=S.entries.filter(x=>x.reactor===e.reactor&&!x.deleted&&x.id>1e12+100);
+  S.lastGas[e.reactor]=rem.length?parseFloat(rem[0].totalgas):null;
+  S.tpCount[e.reactor]=Math.max(0,S.tpCount[e.reactor]-1);
+  updateCount(); renderLog(); document.getElementById('toast').classList.remove('show');
+}
+
+// Render charts on first tab switch (D3 needs DOM dimensions)
+window.addEventListener('load', () => {
+  buildSidebar();
+  buildCompareDropdowns();
+  updateLiveStrip();
+  // Auto-connect to Google Sheets on load
+  setTimeout(() => sheetsConnect(), 800);
+  // Charts render empty until user selects reactors — no seed data
+  setTimeout(()=>{ renderTimeSeries(); renderBarChart(); renderScatter(); }, 100);
+});
+
+// ══ IMPORT MODULE ══
+const IMP = {
+  sheetId: null,
+  gid: null,
+  tabName: null,
+  tabs: [],
+  rawRows: [],
+  validatedRows: []
+};
+
+const REQUIRED_FIELDS = ['runid','date','reactor','timepoint','voltage','current','totalgas'];
+const OPTIONAL_FIELDS = ['day','mode','trigger','feedstock','h2pct','co2pct','ph_ferm_t0','cond_ferm_t0','ph_ferm_tend','cond_ferm_tend','ph_reac_t0','cond_reac_t0','ph_reac_tend','cond_reac_tend','notes'];
+const REACTOR_KEYS = Object.values(RC_NAMES);
+
+function extractSheetId(url) {
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
+function buildCsvUrl(sheetId, gid) {
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&id=${sheetId}` + (gid ? `&gid=${gid}` : '');
+}
+
+async function fetchSheetMeta() {
+  const url = document.getElementById('imp-url').value.trim();
+  const hint = document.getElementById('imp-url-hint');
+  const input = document.getElementById('imp-url');
+  const btn = document.getElementById('btn-fetch');
+
+  input.classList.remove('error');
+  hint.className = 'imp-hint';
+
+  const id = extractSheetId(url);
+  if (!id) {
+    input.classList.add('error');
+    hint.textContent = '⚠ Could not find a sheet ID in that URL.';
+    hint.className = 'imp-hint error';
+    return;
+  }
+
+  IMP.sheetId = id;
+  btn.innerHTML = '<span class="imp-spinner"></span>Fetching…';
+  btn.disabled = true;
+
+  // Extract gid from URL if present
+  const gidMatch = url.match(/[#&?]gid=(\d+)/);
+  const gid = gidMatch ? gidMatch[1] : '0';
+
+  // Try direct CSV export — works for public sheets without CORS issues
+  const csvUrl = buildCsvUrl(id, gid);
+  try {
+    const resp = await fetch(csvUrl);
+    if (!resp.ok) throw new Error(`Sheet returned ${resp.status}. Make sure it is set to "Anyone with the link can view".`);
+    const csvText = await resp.text();
+
+    // Check we got CSV not an HTML error page
+    if (csvText.trim().startsWith('<!DOCTYPE') || csvText.trim().startsWith('<html')) {
+      throw new Error('Sheet is not publicly accessible. Set sharing to "Anyone with the link can view" and try again.');
+    }
+
+    // Parse to get column headers and detect tab name from URL
+    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    IMP.rawRows = parsed.data;
+    IMP.gid = gid;
+
+    // Try to get tab name from URL hash or default
+    const tabNameMatch = url.match(/[#&]gid=(\d+)/);
+    IMP.tabName = 'SDR'; // will be refined if multi-tab
+
+    // Show as single tab chip — for single-tab sheets this is all we need
+    // Try to detect if there are multiple sheets via the sheets feed
+    await tryDetectTabs(id, gid, csvText);
+
+    hint.textContent = `✓ Sheet accessible — ${IMP.rawRows.length} rows found`;
+    hint.className = 'imp-hint success';
+
+  } catch(e) {
+    input.classList.add('error');
+    hint.textContent = `⚠ ${e.message}`;
+    hint.className = 'imp-hint error';
+    // Show paste fallback
+    document.getElementById('paste-fallback').style.display = 'block';
+  } finally {
+    btn.innerHTML = 'Fetch sheet';
+    btn.disabled = false;
+  }
+}
+
+async function tryDetectTabs(sheetId, currentGid, firstCsvText) {
+  // Try the worksheets feed to get all tab names
+  try {
+    const feedUrl = `https://spreadsheets.google.com/feeds/worksheets/${sheetId}/public/basic?alt=json`;
+    const resp = await fetch(feedUrl);
+    if (resp.ok) {
+      const data = await resp.json();
+      const entries = data?.feed?.entry || [];
+      if (entries.length > 0) {
+        IMP.tabs = entries.map(e => ({
+          name: e.title.$t,
+          gid: e.id.$t.split('/').pop()
+        }));
+        renderTabChips();
+        return;
+      }
+    }
+  } catch(e) { /* fall through */ }
+
+  // Fallback: we already have the CSV — show as single tab
+  // Try to infer tab name from reactor column in data
+  const parsed = Papa.parse(firstCsvText, { header: true, skipEmptyLines: true });
+  const reactorVal = parsed.data[0]?.reactor || 'Sheet 1';
+  IMP.tabs = [{ name: reactorVal, gid: currentGid }];
+  IMP.tabName = reactorVal;
+  renderTabChips();
+
+  // Auto-select since there's only one tab, and pre-load data
+  IMP.gid = currentGid;
+  IMP.rawRows = parsed.data;
+  autoSelectAndValidate(reactorVal, currentGid);
+}
+
+function autoSelectAndValidate(tabName, gid) {
+  // Unlock step 2, auto-select chip, then immediately validate
+  const step2 = document.getElementById('imp-step-tab');
+  step2.classList.remove('imp-card-disabled');
+  step2.classList.add('unlocked');
+  setTimeout(() => {
+    const chips = document.querySelectorAll('.tab-chip');
+    if (chips.length === 1) {
+      chips[0].classList.add('selected');
+      IMP.tabName = tabName;
+      IMP.gid = gid;
+      document.getElementById('btn-load-tab').disabled = false;
+      document.getElementById('imp-tab-hint').textContent = `Tab "${tabName}" auto-selected — click Load tab data to validate`;
+    }
+  }, 100);
+}
+
+function renderTabChips() {
+  const container = document.getElementById('tab-chips');
+  const step = document.getElementById('imp-step-tab');
+  step.classList.remove('imp-card-disabled');
+  step.classList.add('unlocked');
+
+  const reactorTabNames = Object.values(RC_NAMES).map(n => n.toLowerCase());
+
+  container.innerHTML = IMP.tabs.map(t => {
+    const matched = reactorTabNames.some(n => n.toLowerCase() === t.name.toLowerCase());
+    return `<div class="tab-chip ${matched?'matched':''}" data-gid="${t.gid}" data-name="${t.name}" onclick="selectTab(this,'${t.gid}','${t.name}')">${t.name}</div>`;
+  }).join('');
+
+  document.getElementById('imp-tab-actions').style.display = 'flex';
+  document.getElementById('btn-load-tab').disabled = true;
+  if (IMP.tabs.length > 1) {
+    document.getElementById('imp-tab-hint').textContent = 'Select a tab. Green = known reactor name.';
+  }
+}
+
+function selectTab(el, gid, name) {
+  document.querySelectorAll('.tab-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  IMP.gid = gid;
+  IMP.tabName = name;
+  document.getElementById('btn-load-tab').disabled = false;
+  document.getElementById('imp-tab-hint').textContent = `"${name}" selected — click Load tab data`;
+}
+
+async function fetchTabData() {
+  const btn = document.getElementById('btn-load-tab');
+  btn.innerHTML = '<span class="imp-spinner"></span>Loading…';
+  btn.disabled = true;
+
+  try {
+    // If we already have raw rows from the initial fetch (single tab), use them
+    if (IMP.rawRows.length > 0) {
+      validateRows();
+      renderValidationTable();
+      document.getElementById('imp-step-validate').classList.remove('imp-card-disabled');
+      document.getElementById('imp-step-validate').classList.add('unlocked');
+      btn.innerHTML = 'Load tab data';
+      btn.disabled = false;
+      return;
+    }
+
+    // Otherwise fetch the specific tab
+    const csvUrl = buildCsvUrl(IMP.sheetId, IMP.gid);
+    const resp = await fetch(csvUrl);
+    if (!resp.ok) throw new Error('Could not fetch tab.');
+    const csvText = await resp.text();
+    if (csvText.trim().startsWith('<')) throw new Error('Sheet not accessible.');
+
+    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    IMP.rawRows = parsed.data;
+    if (!IMP.rawRows.length) throw new Error('Tab is empty.');
+
+    validateRows();
+    renderValidationTable();
+    document.getElementById('imp-step-validate').classList.remove('imp-card-disabled');
+    document.getElementById('imp-step-validate').classList.add('unlocked');
+
+  } catch(e) {
+    document.getElementById('imp-tab-hint').textContent = `⚠ ${e.message}`;
+  } finally {
+    btn.innerHTML = 'Load tab data';
+    btn.disabled = false;
+  }
+}
+
+// ── PASTE FALLBACK ──
+function parsePastedCSV() {
+  const text = document.getElementById('paste-csv-input').value.trim();
+  if (!text) return;
+  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+  if (!parsed.data.length) {
+    document.getElementById('paste-hint').textContent = '⚠ Could not parse — check the format is CSV with headers in row 1.';
+    return;
+  }
+  IMP.rawRows = parsed.data;
+  IMP.tabName = parsed.data[0]?.reactor || 'Pasted data';
+  IMP.tabs = [{ name: IMP.tabName, gid: '0' }];
+
+  // Unlock and auto-show step 2 + 3
+  const step2 = document.getElementById('imp-step-tab');
+  step2.classList.remove('imp-card-disabled');
+  step2.classList.add('unlocked');
+  document.getElementById('tab-chips').innerHTML =
+    `<div class="tab-chip matched selected">${IMP.tabName}</div>`;
+  document.getElementById('imp-tab-hint').textContent = `${IMP.rawRows.length} rows parsed from pasted data`;
+  document.getElementById('imp-tab-actions').style.display = 'flex';
+  document.getElementById('btn-load-tab').disabled = false;
+
+  validateRows();
+  renderValidationTable();
+  document.getElementById('imp-step-validate').classList.remove('imp-card-disabled');
+  document.getElementById('imp-step-validate').classList.add('unlocked');
+  document.getElementById('paste-hint').textContent = `✓ ${IMP.rawRows.length} rows loaded`;
+  document.getElementById('paste-hint').style.color = '#2d7a4a';
+}
+
+function validateRows() {
+  // Normalise headers — trim spaces from keys
+  IMP.rawRows = IMP.rawRows.map(row => {
+    const clean = {};
+    Object.keys(row).forEach(k => { clean[k.trim()] = (row[k]||'').trim(); });
+    return clean;
+  });
+
+  const reactorKeys = Object.values(RC_NAMES).map(n => n.toLowerCase());
+
+  IMP.validatedRows = IMP.rawRows.map((row, i) => {
+    const errors = [];
+    const warnings = [];
+
+    REQUIRED_FIELDS.forEach(f => {
+      if (!row[f] || row[f].trim() === '') errors.push(`Missing: ${f}`);
+    });
+
+    if (row.reactor && !reactorKeys.includes(row.reactor.toLowerCase())) {
+      errors.push(`Unknown reactor "${row.reactor}"`);
+    }
+
+    ['voltage','current','totalgas'].forEach(f => {
+      if (row[f] && isNaN(parseFloat(row[f]))) errors.push(`${f} must be numeric`);
+    });
+
+    ['h2pct','co2pct'].forEach(f => {
+      const v = parseFloat(row[f]);
+      if (row[f] && (!isNaN(v)) && (v < 0 || v > 100)) warnings.push(`${f} outside 0–100`);
+    });
+
+    if (row.date && isNaN(Date.parse(row.date))) warnings.push(`date format "${row.date}" may not parse`);
+
+    const status = errors.length ? 'err' : warnings.length ? 'warn' : 'ok';
+    return { row, errors, warnings, status, idx: i + 1 };
+  });
+}
+
+function renderValidationTable() {
+  const wrap = document.getElementById('val-table-wrap');
+  const footer = document.getElementById('imp-footer');
+  const stats = document.getElementById('imp-stats');
+
+  const ok   = IMP.validatedRows.filter(r => r.status==='ok').length;
+  const warn = IMP.validatedRows.filter(r => r.status==='warn').length;
+  const err  = IMP.validatedRows.filter(r => r.status==='err').length;
+  const committable = ok + warn;
+
+  stats.innerHTML = `
+    <span class="stat-pill stat-ok">${ok} clean</span>
+    ${warn ? `<span class="stat-pill stat-warn">${warn} warn</span>` : ''}
+    ${err  ? `<span class="stat-pill stat-err">${err} errors</span>`  : ''}
+  `;
+
+  const cols = ['status','runid','date','reactor','timepoint','voltage','current','totalgas','h2pct','co2pct','h2vol','co2vol'];
+
+  const thead = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}<th>issues</th></tr></thead>`;
+
+  const tbody = IMP.validatedRows.map(vr => {
+    const tg = parseFloat(vr.row.totalgas)||0;
+    const h2 = parseFloat(vr.row.h2pct)||0;
+    const co = parseFloat(vr.row.co2pct)||0;
+    const derived = {
+      h2vol: vr.row.h2vol || (tg*h2/100).toFixed(2),
+      co2vol: vr.row.co2vol || (tg*co/100).toFixed(2)
+    };
+
+    const cells = cols.map(c => {
+      if (c==='status') return `<td><span class="row-status ${vr.status}">${vr.status==='ok'?'✓ Clean':vr.status==='warn'?'⚠ Warn':'✗ Error'}</span></td>`;
+      const val = vr.row[c] || derived[c] || '';
+      const isEmpty = !val || val.trim()==='';
+      const isErr  = vr.errors.some(e=>e.includes(c));
+      const isWarn = vr.warnings.some(w=>w.includes(c));
+      const cls = isErr?'cell-err':isWarn?'cell-warn':isEmpty?'cell-empty':'';
+      return `<td class="${cls}" title="${val}">${isEmpty?'—':String(val).slice(0,18)}</td>`;
+    });
+
+    const issues = [...vr.errors.map(e=>`<div style="color:var(--danger);font-size:9px;line-height:1.6">✗ ${e}</div>`),
+                    ...vr.warnings.map(w=>`<div style="color:#8a6000;font-size:9px;line-height:1.6">⚠ ${w}</div>`)].join('') || '—';
+
+    return `<tr class="row-${vr.status}">${cells.join('')}<td style="min-width:160px;">${issues}</td></tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table class="val-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+
+  if (committable > 0) {
+    footer.style.display = 'flex';
+    document.getElementById('imp-commit-hint').textContent =
+      `${committable} row${committable>1?'s':''} ready · ${err} error row${err!==1?'s':''} excluded`;
+  }
+}
+
+function commitImport() {
+  const toImport = IMP.validatedRows.filter(r => r.status !== 'err');
+  const gasTracker = {};
+  let imported = 0;
+
+  toImport.forEach(vr => {
+    const row = vr.row;
+    const reactorKey = Object.keys(RC_NAMES).find(k =>
+      RC_NAMES[k].toLowerCase() === (row.reactor||'').toLowerCase()) || 'R7';
+    const tg = parseFloat(row.totalgas)||0;
+    const h2 = parseFloat(row.h2pct)||0;
+    const co = parseFloat(row.co2pct)||0;
+    const runKey = reactorKey + '||' + row.runid;
+    const prev = gasTracker[runKey] ?? null;
+    const ig = prev !== null ? Math.max(0, tg - prev) : tg;
+    gasTracker[runKey] = tg;
+
+    S.entries.push({
+      id: Date.now() + imported + Math.random(),
+      reactor: reactorKey,
+      runid: row.runid||'',
+      date: row.date||'',
+      day: row.day||'',
+      timepoint: row.timepoint||'',
+      mode: row.mode||'',
+      trigger: row.trigger||'',
+      voltage: row.voltage||'',
+      current: row.current||'',
+      totalgas: tg,
+      intervalgas: ig.toFixed(2),
+      h2pct: h2, co2pct: co,
+      h2vol: (row.h2vol && parseFloat(row.h2vol) > 0) ? row.h2vol : (ig*h2/100).toFixed(3),
+      co2vol: (row.co2vol && parseFloat(row.co2vol) > 0) ? row.co2vol : (ig*co/100).toFixed(3),
+      ph_ferm_t0: row.ph_ferm_t0||'', cond_ferm_t0: row.cond_ferm_t0||'',
+      ph_ferm_tend: row.ph_ferm_tend||'', cond_ferm_tend: row.cond_ferm_tend||'',
+      ph_reac_t0: row.ph_reac_t0||'', cond_reac_t0: row.cond_reac_t0||'',
+      ph_reac_tend: row.ph_reac_tend||'', cond_reac_tend: row.cond_reac_tend||'',
+      feedstock: row.feedstock||'',
+      notes: row.notes||'',
+      source: 'import',
+      deleted: false
+    });
+    imported++;
+  });
+  console.log(`[Ossus] Imported ${imported} entries. Sample:`, S.entries.slice(-3));
+  console.log(`[Ossus] Reactor keys in entries:`, [...new Set(S.entries.map(e=>e.reactor+' ('+RC_NAMES[e.reactor]+')'))]);
+
+  document.getElementById('ptab-import-count').textContent = imported;
+
+  // Auto-select the imported reactor in Analytics dropdowns
+  // Find which reactor keys were actually imported
+  const importedReactorKeys = [...new Set(
+    IMP.validatedRows.filter(r=>r.status!=='err').map(vr => {
+      return Object.keys(RC_NAMES).find(k =>
+        RC_NAMES[k].toLowerCase() === (vr.row.reactor||'').toLowerCase()) || 'R7';
+    })
+  )];
+  if (importedReactorKeys.length > 0) {
+    ['ts-reactor-a','bar-reactor-a'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = importedReactorKeys[0];
+    });
+    if (importedReactorKeys.length > 1) {
+      ['ts-reactor-b','bar-reactor-b'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = importedReactorKeys[1];
+      });
+    }
+  }
+
+  document.getElementById('imp-step-success').style.display = 'block';
+  document.getElementById('imp-success-title').textContent = `${imported} row${imported!==1?'s':''} imported`;
+  document.getElementById('imp-success-sub').textContent =
+    `Tab "${IMP.tabName}" · ${IMP.validatedRows.filter(r=>r.status==='err').length} error rows excluded · Switch to Analytics to view`;
+  document.getElementById('imp-step-success').scrollIntoView({ behavior:'smooth' });
+  // Offer push to sheets if connected
+  if (GSHEETS.connected) {
+    setTimeout(()=>{ pushAllToSheets(); }, 500);
+  }
+}
+
+function resetImport() {
+  IMP.sheetId=null; IMP.gid=null; IMP.tabName=null;
+  IMP.tabs=[]; IMP.rawRows=[]; IMP.validatedRows=[];
+  document.getElementById('imp-url').value='';
+  document.getElementById('imp-url').classList.remove('error');
+  document.getElementById('imp-url-hint').textContent='Paste any Google Sheets share link — we extract the sheet ID automatically.';
+  document.getElementById('imp-url-hint').className='imp-hint';
+  document.getElementById('tab-chips').innerHTML='<div class="imp-placeholder">Fetch a sheet first to see available tabs</div>';
+  document.getElementById('imp-step-tab').classList.add('imp-card-disabled');
+  document.getElementById('imp-step-tab').classList.remove('unlocked');
+  document.getElementById('imp-step-validate').classList.add('imp-card-disabled');
+  document.getElementById('imp-step-validate').classList.remove('unlocked');
+  document.getElementById('val-table-wrap').innerHTML='<div class="imp-placeholder" style="padding:24px;">Load a tab to see validation results</div>';
+  document.getElementById('imp-footer').style.display='none';
+  document.getElementById('imp-stats').innerHTML='';
+  document.getElementById('imp-step-success').style.display='none';
+  document.getElementById('imp-tab-actions').style.display='none';
+  document.getElementById('paste-fallback').style.display='none';
+  if(document.getElementById('paste-csv-input')) document.getElementById('paste-csv-input').value='';
+  if(document.getElementById('paste-hint')) document.getElementById('paste-hint').textContent='';
+}
+
+
+// ══ GOOGLE SHEETS INTEGRATION ══
+
+const GSHEETS = {
+  url:       'https://script.google.com/macros/s/AKfycbwMGJgUsS0Qqm8yT1tk0DtoCA-kDTGOpwys1CbEeuV4inTYFN6DCMmIZPo4uFjrPez0/exec',
+  connected: false,
+  synced:    new Set(),
+};
+
+const SHEET_COLS = [
+  'runid','date','reactor','timepoint','mode','trigger','voltage','current',
+  'totalgas','h2pct','co2pct','h2vol','co2vol','day','feedstock',
+  'ph_ferm_t0','cond_ferm_t0','ph_ferm_tend','cond_ferm_tend',
+  'ph_reac_t0','cond_reac_t0','ph_reac_tend','cond_reac_tend','notes'
+];
+
+// ── Sync status UI ──
+function setSyncStatus(state, label) {
+  const pill  = document.getElementById('sync-pill');
+  const dot   = document.getElementById('sync-dot');
+  const lbl   = document.getElementById('sync-label');
+  if (!pill) return;
+  pill.style.display = 'flex';
+  lbl.textContent = label;
+  const cols = { ok:'#2d7a4a', error:'#9a2a1a', pending:'#c8880a', off:'#c2b098' };
+  dot.style.background = cols[state] || cols.off;
+  dot.style.animation  = state==='pending' ? 'blink 1s ease-in-out infinite' : '';
+}
+
+// ── Modal ──
+function openSheetsModal() {
+  // With service account baked in — just connect directly, no modal needed
+  if (GSHEETS.connected) {
+    if (confirm('Sheets is connected.\n\nDisconnect?')) sheetsSignOut();
+  } else {
+    sheetsConnect();
+  }
+}
+
+// ── Apps Script connection ──
+async function sheetsConnect() {
+  setSyncStatus('pending', 'Connecting…');
+  try {
+    const resp = await fetch(GSHEETS.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'ping' }),
+      redirect: 'follow'
+    });
+    const text = await resp.text();
+    console.log('[Sheets ping response]', text);
+    // Try to parse JSON — if it fails, still mark connected
+    // Apps Script sometimes returns redirect pages but writes still work
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch(e) {}
+    if (parsed && parsed.status === 'error') {
+      throw new Error(parsed.message || 'Apps Script error');
+    }
+    GSHEETS.connected = true;
+    const btn = document.getElementById('sheets-connect-btn');
+    if (btn) btn.textContent = '⬡ Sheets ✓';
+    const pb = document.getElementById('push-sheets-btn');
+    if (pb) pb.style.display = 'inline-block';
+    setSyncStatus('ok', 'Connected');
+  } catch(e) {
+    setSyncStatus('error', 'Connection failed — check console');
+    console.error('[Sheets connect error]', e.message);
+  }
+}
+
+function sheetsSignOut() {
+  GSHEETS.connected = false;
+  setSyncStatus('off', 'Disconnected');
+  const btn = document.getElementById('sheets-connect-btn');
+  if (btn) btn.textContent = '⬡ Sheets';
+  const pb = document.getElementById('push-sheets-btn');
+  if (pb) pb.style.display = 'none';
+}
+
+function openSheetsModal() {
+  if (GSHEETS.connected) {
+    if (confirm('Sheets is connected to Ossus Field Log.\n\nDisconnect?')) sheetsSignOut();
+  } else {
+    sheetsConnect();
+  }
+}
+
+// ── Apps Script API call ──
+async function appsScriptPost(payload) {
+  const resp = await fetch(GSHEETS.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    redirect: 'follow',
+    body: JSON.stringify(payload)
+  });
+  return resp;
+}
+
+async function ensureSheetTabs() {
+  // Apps Script creates tabs automatically on first write — nothing to do here
+  return true;
+}
+
+// ── Write a single entry row ──
+async function writeEntryToSheet(entry) {
+  if (!GSHEETS.connected) return false;
+  if (GSHEETS.synced.has(entry.id)) return true;
+
+  const reactorName = RC_NAMES[entry.reactor] || entry.reactor;
+  const row = SHEET_COLS.map(col => {
+    if (col === 'reactor') return reactorName;
+    return String(entry[col] ?? '');
+  });
+
+  try {
+    setSyncStatus('pending', 'Writing…');
+    const resp = await fetch(GSHEETS.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      redirect: 'follow',
+      body: JSON.stringify({
+        action:  'write',
+        tab:     reactorName,
+        headers: SHEET_COLS,
+        row:     row
+      })
+    });
+    const text = await resp.text();
+    console.log('[Sheets write response]', text);
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch(e) {}
+    if (parsed && parsed.status === 'error') {
+      throw new Error(parsed.message || 'Write error from Apps Script');
+    }
+    GSHEETS.synced.add(entry.id);
+    setSyncStatus('ok', 'Synced ✓');
+    return true;
+  } catch(e) {
+    setSyncStatus('error', 'Write failed — check console');
+    console.error('[Sheets write error]', e.message);
+    return false;
+  }
+}
+
+// ── Delete row on undo ──
+async function deleteSheetRow(entry) {
+  if (!GSHEETS.connected || !GSHEETS.synced.has(entry.id)) return;
+  const reactorName = RC_NAMES[entry.reactor] || entry.reactor;
+  try {
+    await appsScriptPost({
+      action:    'delete',
+      tab:       reactorName,
+      runid:     entry.runid,
+      timepoint: entry.timepoint
+    });
+    GSHEETS.synced.delete(entry.id);
+    setSyncStatus('ok', 'Row deleted');
+  } catch(e) { console.error('[Sheets delete]', e); }
+}
+
+// ── Push all local entries to sheet ──
+async function pushAllToSheets() {
+  if (!GSHEETS.connected) { sheetsConnect().then(pushAllToSheets); return; }
+  const unsynced = S.entries.filter(e=>!e.deleted && !GSHEETS.synced.has(e.id));
+  if (!unsynced.length) { setSyncStatus('ok','All synced'); return; }
+  setSyncStatus('pending',`Writing ${unsynced.length} rows…`);
+  let ok=0;
+  for (const e of unsynced) {
+    const success = await writeEntryToSheet(e);
+    if (success) ok++;
+  }
+  setSyncStatus('ok',`${ok}/${unsynced.length} written`);
+}
+
+// ══ EXPORT CSV ══
+function exportCSV() {
+  const vis = S.entries.filter(e=>!e.deleted);
+  if (!vis.length) { alert('No entries to export'); return; }
+
+  const headers = SHEET_COLS;
+  const rows = vis.map(e =>
+    headers.map(col => {
+      if (col==='reactor') return RC_NAMES[e.reactor]||e.reactor;
+      const v = e[col] ?? '';
+      // Quote values containing commas
+      return String(v).includes(',') ? `"${v}"` : v;
+    }).join(',')
+  );
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `ossus_export_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+</script>
+</body>
+</html>
+
